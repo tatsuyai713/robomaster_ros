@@ -48,6 +48,11 @@ Both select the supported 720p video path and disable modules that require EP
 hardware or official-SDK private transports. Existing launch files continue to
 default to the official backend.
 
+`s1_lab.launch`から呼ばれる`Robot.initialize()`は、Connect、Lab mode遷移、
+DSPのFTP upload、MD5付きStartを順に自動実行します。各遷移には安定待ちがあり、
+FTPは期限付きで再試行します。Start後は機体bridgeから実測telemetryが返るまで
+ROS nodeの初期化を成功扱いにせず、既定5秒でtimeoutします。
+
 ### ROS 2 backendの比較
 
 ここでいう「公式SDK」は、このdriverが通常使用するDJI公式SDK互換backendを指します。
@@ -58,7 +63,7 @@ SOLO SDKとLAB-SDKはROS interfaceを可能な限り維持しますが、通信�
 | 選択 | `sdk_backend:=official` | `sdk_backend:=solo` | `sdk_backend:=lab` |
 | Launch | `s1.launch` / `ep.launch` | `s1_solo.launch` | `s1_lab.launch` |
 | 実行場所 | Host | Host | Host + S1 Python 3.6 DSP |
-| 接続 | 公式SDK transport/private client | AppID claim + App互換SOLO/DUSS | AppID claim + FTP/DSP + UDP `40923/40924` |
+| 接続 | 公式SDK transport/private client | AppID claim + App互換SOLO/DUSS | AppID claim → Lab切替 → FTP/DSP → Start → telemetry応答確認 + UDP `40923/40924` |
 | `cmd_vel` | 公式`drive_speed()` | 直接control payloadを50 Hz保持 | Lab `move_with_speed()`を50 Hz更新 |
 | telemetry | 公式SDK内部配信層 | App/DUSS packetの実測decode | Lab controller getterの実測値 |
 | IMU / ESC / status | 対応 | 未解析のため無効 | getterがないため無効 |
