@@ -58,6 +58,8 @@ LAB-SDKはROS interfaceを可能な限り維持しますが、通信経路とS1 
 
 公式SDKのmodule名`robomaster.dds`は、機体から購読したtelemetryをcallbackへ配るSDK内部層です。
 ROS 2の通信middlewareであるDDSそのものではなく、別SDKを意味しません。
+その受信telemetry queueは制御command queueではありません。公式SDKの通常commandは即時socket送信であり、
+LAB-SDKのlatest-only motionは追加のprocess間・UDP bridgeで古い速度を後から再生しないための差です。
 
 #### ROS module対応表
 
