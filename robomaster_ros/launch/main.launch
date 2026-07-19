@@ -7,9 +7,9 @@
   <!-- CLIENT -->
   <arg name="serial_number" default="$(env RM_SERIAL_NUMBER '')" description="The serial number of the robot. Leave empty to ignore it."/>
   <arg name="conn_type" default="sta" description="The type of connection: sta, ap, or rndis"/>
-  <arg name="sdk_backend" default="official" description="SDK backend: official or lab"/>
-  <arg name="robot_ip" default="$(env RM_ROBOT_IP '')" description="Robot IP; recommended for LAB-SDK"/>
-  <arg name="appid" default="$(env RM_APPID 'b6359877')" description="Windows App-compatible AppID used by LAB-SDK"/>
+  <arg name="sdk_backend" default="official" description="SDK backend: official, lab, or solo"/>
+  <arg name="robot_ip" default="$(env RM_ROBOT_IP '')" description="Robot IP; recommended for LAB-SDK and SOLO SDK"/>
+  <arg name="appid" default="$(env RM_APPID 'b6359877')" description="Windows App-compatible AppID used by LAB-SDK and SOLO SDK"/>
   <arg name="lib_log_level" default="ERROR" description="Robomaster SDK logging level"/>
   <arg name="reconnect" default="true" description="Wait for reconnections"/>
 

@@ -93,6 +93,8 @@ class Chassis(Module):
         self.node = node
         self.robot = robot
         self.lab_sdk = bool(getattr(robomaster, "IS_LAB_SDK", False))
+        self.solo_sdk = bool(getattr(robomaster, "IS_S1_WIFI_SDK", False))
+        self.constrained_s1_sdk = self.lab_sdk or self.solo_sdk
         desc = rcl_interfaces.msg.ParameterDescriptor(
             description=(
                 "Set the command deadline in seconds. Values less or equal to zero "
@@ -185,7 +187,7 @@ class Chassis(Module):
         self.position_period = 1.0 / chassis_rate
         if chassis_rate:
             self.subscribe(chassis_rate)
-        if status_rate and not self.lab_sdk:
+        if status_rate and not self.constrained_s1_sdk:
             self.api.sub_status(freq=status_rate, callback=self.updated_status)
 
         node.create_subscription(geometry_msgs.msg.Twist, 'cmd_vel', self.has_received_twist, 1)
@@ -309,9 +311,9 @@ class Chassis(Module):
         return rcl_interfaces.msg.SetParametersResult(successful=True)
 
     def engage(self, value: bool) -> None:
-        if self.lab_sdk:
+        if self.constrained_s1_sdk:
             self.logger.warning(
-                "[Chassis] engage_wheels is unavailable in stock S1 Lab mode"
+                "[Chassis] engage_wheels is unavailable with this S1 backend"
             )
             return
         proto = robomaster.protocol.ProtoChassisSetWorkMode()
@@ -337,7 +339,7 @@ class Chassis(Module):
             self.api.sub_attitude(freq=rate, callback=self.updated_attitude)
             self.api.sub_position(cs=1, freq=rate, callback=self.updated_position)
             self.api.sub_velocity(freq=rate, callback=self.updated_velocity)
-            if not self.lab_sdk:
+            if not self.constrained_s1_sdk:
                 self.api.sub_imu(freq=rate, callback=self.updated_imu)
                 self.api.sub_esc(freq=rate, callback=self.updated_esc)
             self.position_period = 1.0 / rate
@@ -346,7 +348,7 @@ class Chassis(Module):
         self.api.unsub_position()
         self.api.unsub_velocity()
         self.api.unsub_attitude()
-        if not self.lab_sdk:
+        if not self.constrained_s1_sdk:
             self.api.unsub_imu()
             self.api.unsub_esc()
 
@@ -354,9 +356,11 @@ class Chassis(Module):
         self._move_action_server.destroy()
         self.engage_server.destroy()
         if self.node.connected:
+            if self.solo_sdk:
+                self.api.stop()
             self.api.drive_wheels(0, 0, 0, 0)
             self.unsubscribe()
-            if not self.lab_sdk:
+            if not self.constrained_s1_sdk:
                 self.api.unsub_status()
 
     def has_received_twist(self, msg: geometry_msgs.msg.Twist) -> None:

@@ -38,7 +38,10 @@ def mode2api(mode: int) -> str:
 def move(api: robomaster.gimbal.Gimbal, pitch: float = 0, yaw: float = 0, pitch_speed: float = 30,
          yaw_speed: float = 0, frame: int = robomaster.gimbal.COORDINATE_CUR
          ) -> robomaster.gimbal.GimbalMoveAction:
-    if getattr(robomaster, "IS_LAB_SDK", False):
+    if (
+        getattr(robomaster, "IS_LAB_SDK", False)
+        or getattr(robomaster, "IS_S1_WIFI_SDK", False)
+    ):
         if frame == robomaster.gimbal.COORDINATE_CUR:
             return api.move(
                 pitch=pitch,
@@ -67,7 +70,9 @@ class Gimbal(Module):
 
     def __init__(self, robot: robomaster.robot.Robot, node: 'RoboMasterROS') -> None:
         self.api = robot.gimbal
-        self.api.recenter()
+        self.solo_sdk = bool(getattr(robomaster, "IS_S1_WIFI_SDK", False))
+        if not self.solo_sdk:
+            self.api.recenter()
         self.robot = robot
         self.clock = node.get_clock()
         self.logger = node.get_logger()
@@ -122,6 +127,8 @@ class Gimbal(Module):
 
     def stop(self) -> None:
         if self.node.connected:
+            self.api.stop()
+        if self.node.connected:
             self.api.unsub_angle()
         self._move_gimbal_action_server.destroy()
         self._recenter_gimbal_action_server.destroy()
@@ -134,6 +141,11 @@ class Gimbal(Module):
                 time.sleep(0.1)
 
     def engage(self, value: bool) -> None:
+        if self.solo_sdk:
+            self.logger.warning(
+                "[Gimbal] suspend/resume is not mapped for the SOLO backend"
+            )
+            return
         if value:
             self.api.resume()
         else:

@@ -41,6 +41,8 @@ class Armor(Module):
         node.add_on_set_parameters_callback(self.set_params_cb)
 
     def set_sensitivity(self, value: float) -> None:
+        if getattr(robomaster, "IS_S1_WIFI_SDK", False):
+            return
         rm_sensitivity = max(0, min(10, int(10 * value)))
         self.api.set_hit_sensitivity(sensitivity=rm_sensitivity)
 

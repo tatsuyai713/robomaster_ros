@@ -5,15 +5,33 @@ This repository contains a ROS2 driver for the DJI Robomaster family of robots (
 
 Full documentation available at https://jeguzzi.github.io/robomaster_ros.
 
-## RoboMaster S1 LAB-SDK backend
+## RoboMaster S1 SOLO / LAB backends
 
-This copy can use the LAB-SDK bundled with the parent
+This copy can use the SOLO SDK or LAB-SDK bundled with the parent
 `RoboMaster-S1-WiFi-SDK` repository. Install the selected backend explicitly;
-the ROS package does not install another `robomaster` package implicitly.
+the ROS package does not install another `robomaster` package implicitly. Use
+separate virtual environments: SOLO installs `SDK/` only; LAB installs its
+base transport dependency `SDK/` first and the LAB facade last.
+
+SOLO backend:
 
 ```bash
 cd /path/to/RoboMaster-S1-WiFi-SDK
-python3 -m pip uninstall -y robomaster
+python3 -m pip uninstall -y robomaster robomaster-s1-lab-sdk
+python3 -m pip install ./SDK
+
+cd <ros2_ws>
+colcon build --packages-select robomaster_msgs robomaster_description robomaster_ros
+source install/setup.bash
+RM_ROBOT_IP=192.168.23.149 RM_APPID=b6359877 \
+  ros2 launch robomaster_ros s1_solo.launch
+```
+
+LAB backend:
+
+```bash
+cd /path/to/RoboMaster-S1-WiFi-SDK
+python3 -m pip uninstall -y robomaster robomaster-s1-wifi-sdk
 python3 -m pip install ./SDK
 python3 -m pip install --no-deps ./LAB-SDK
 
@@ -24,37 +42,30 @@ RM_ROBOT_IP=192.168.23.149 RM_APPID=b6359877 \
   ros2 launch robomaster_ros s1_lab.launch
 ```
 
-The LAB launch uses the 50 Hz S1 Lab DSP bridge, selects the supported 720p
-video path, and disables modules that require EP hardware or official-SDK
-private transports. Existing launch files continue to default to the official
-backend.
+The LAB launch uses the 50 Hz S1 Lab DSP bridge. The SOLO launch uses the
+host-side S1 Windows App-compatible SDK and enters SOLO mode without a DSP.
+Both select the supported 720p video path and disable modules that require EP
+hardware or official-SDK private transports. Existing launch files continue to
+default to the official backend.
 
-### ROS 2における公式SDK backendとの比較
+### ROS 2 backendの比較
 
 ここでいう「公式SDK」は、このdriverが通常使用するDJI公式SDK互換backendを指します。
-LAB-SDKはROS interfaceを可能な限り維持しますが、通信経路とS1 Lab runtimeで取得できる情報が異なります。
+SOLO SDKとLAB-SDKはROS interfaceを可能な限り維持しますが、通信経路と取得元が異なります。
 
-| 項目 | 公式SDK backend | LAB-SDK backend |
-|---|---|---|
-| 選択方法 | `sdk_backend:=official`。既存launchのdefault | `sdk_backend:=lab`。`s1_lab.launch`で設定済み |
-| 対象robot | S1 / EP | S1のみ |
-| Python実行場所 | Host上の公式SDK | Host SDK + S1機体内Python 3.6 DSP |
-| 接続 | 公式connection discovery、SDK transport、private client | Windows App互換Wi-Fi/AppID接続、FTPによるDSP upload、UDP `40923`/`40924` |
-| `cmd_vel` | 公式`chassis.drive_speed()`へ変換 | Lab `chassis_ctrl.move_with_speed()`へ変換。移動中は最新stateを50 Hz更新 |
-| command送信 | 通常commandはsocketへ即時送信。Actionは実行中targetを管理し、同一targetの重複を拒否 | motionはcapacity 1のlatest-only、独立stopはcapacity 8のpriority FIFO、単発commandはcapacity 32の有界FIFO |
-| 通信断時停止 | 公式SDKとdriver heartbeat/disconnection処理 | Host更新停止後に機体側watchdogが速度を減衰して停止 |
-| Position | 公式SDK内部telemetry配信層の`sub_position()` | `get_position_based_power_on()`による実測X/Y |
-| Velocity | 公式SDK内部telemetry配信層の`sub_velocity()` | `get_speed()`による実測forward/translation速度 |
-| Attitude | 公式SDK内部telemetry配信層のattitude | `get_attitude(chassis_yaw)`によるyawのみ。pitch/rollは`None` |
-| IMU / ESC / status | 公式SDK内部telemetry配信層で購読 | stock S1 Lab commandにgetterがないため購読しない |
-| Telemetry rate | 公式SDK購読APIの対応frequency | 購読fieldだけを1/5/10/20/50 Hzでgetter取得。未購読getterは停止 |
-| Gimbal angle | 公式SDK内部telemetry配信層 | `get_axis_angle()`によるpitch/yaw。ground angleは`None` |
-| Gimbal/Chassis Action | 公式Action progress、完了push、abort/cancel | Lab command投入結果をAction互換objectで返す。実動作progress/cancel通知は非対応 |
-| Video | 公式LiveView、launchで解像度/protocol選択 | 親projectのApp互換raw streamをLiveView facadeへ接続。LAB launchは720p |
-| Audio受信 | 公式LiveView | 親projectのApp互換audio受信経路 |
-| Speaker再生 | 公式speaker module | stock S1 Lab制約のため`S1 Lab` launchでは無効 |
-| Heartbeat | 公式private `_client` heartbeat | private APIを呼ばず、LAB bridge watchdogを使用 |
-| Reconnect | 公式clientのdisconnection/heartbeatを利用 | private client再接続とは非互換。bridge/DSP再起動が必要になる場合がある |
+| 項目 | 公式SDK | SOLO `SDK/` | LAB-SDK |
+|---|---|---|---|
+| 選択 | `sdk_backend:=official` | `sdk_backend:=solo` | `sdk_backend:=lab` |
+| Launch | `s1.launch` / `ep.launch` | `s1_solo.launch` | `s1_lab.launch` |
+| 実行場所 | Host | Host | Host + S1 Python 3.6 DSP |
+| 接続 | 公式SDK transport/private client | AppID claim + App互換SOLO/DUSS | AppID claim + FTP/DSP + UDP `40923/40924` |
+| `cmd_vel` | 公式`drive_speed()` | 直接control payloadを50 Hz保持 | Lab `move_with_speed()`を50 Hz更新 |
+| telemetry | 公式SDK内部配信層 | App/DUSS packetの実測decode | Lab controller getterの実測値 |
+| IMU / ESC / status | 対応 | 未解析のため無効 | getterがないため無効 |
+| Action | progress/完了push/cancel | 距離・角度Action未対応 | command投入互換。progress/cancel非対応 |
+| Video/audio | 公式LiveView | App互換raw stream | App互換raw stream |
+| Heartbeat | 公式private `_client` | 直接SDK receive loop/SOLO keepalive | bridge watchdog |
+| 対応module | 機体構成に応じる | armor、battery、blaster、camera、chassis、gimbal、LED | 同左 |
 
 公式SDKのmodule名`robomaster.dds`は、機体から購読したtelemetryをcallbackへ配るSDK内部層です。
 ROS 2の通信middlewareであるDDSそのものではなく、別SDKを意味しません。
@@ -63,19 +74,15 @@ LAB-SDKのlatest-only motionは追加のprocess間・UDP bridgeで古い速度�
 
 #### ROS module対応表
 
-| `robomaster_ros` module | 公式SDK | LAB-SDK | LAB-SDKでの扱い |
-|---|---:|---:|---|
-| `chassis` | 有効 | 有効 | position/velocity/yawと速度・距離・回転command。IMU/ESC/status/engageは無効 |
-| `gimbal` | 有効 | 有効 | 公開`move()`/`moveto()`/`drive_speed()`経路を使用 |
-| `camera` | 有効 | 有効 | App互換video/audio raw stream |
-| `battery` | 有効 | 有効 | percentは実測。他の公式battery tuple要素は取得不能のため0 |
-| `armor` | 有効 | 有効 | 基礎Wi-Fi/DUSS経路のhit event |
-| `blaster` | 有効 | 有効 | S1 Labで利用可能なIR/physical fire mapping |
-| `led` | 有効 | 有効 | Lab公開`set_led()`へ変換。mask/effectの一部は近似mapping |
-| `speaker` | 有効 | 無効 | `s1_lab.launch`で無効 |
-| `arm` / `gripper` | EPで有効 | 無効 | EP hardwareかつstock S1 Lab対象外 |
-| `servo` / `tof` / `uart` / `sensor_adapter` | 構成により有効 | 無効 | stock S1 Lab commandだけではROS data sourceを満たせない |
-| `pwm` / `sbus` / `vision` | 構成により有効 | 無効 | LAB backendのROS module allowlist外 |
+| module | 公式SDK | SOLO | LAB-SDK | 制約 |
+|---|---:|---:|---:|---|
+| chassis | 有効 | 有効 | 有効 | SOLOは速度/wheelのみ。LABは距離commandも部分対応。両方IMU/ESC/status無効 |
+| gimbal | 有効 | 有効 | 有効 | SOLOは速度のみ。LABは角度commandも部分対応 |
+| camera | 有効 | 有効 | 有効 | SOLO/LABはApp互換raw video/audio |
+| battery | 有効 | 有効 | 有効 | percent実測、未取得tuple要素は0 |
+| armor | 有効 | 有効 | 有効 | SOLOでは感度設定未対応 |
+| blaster / LED | 有効 | 有効 | 有効 | component/effectの一部を近似mapping |
+| speaker / EP拡張 | 構成依存 | 無効 | 無効 | 対応するhardware/解析済みcommandがない |
 
 対応moduleでは既存ROS topic/action名を維持します。取得元が存在しないaxisや状態を0・積分・推定値で
 補完せず、購読しないか`None`として扱います。そのため、公式SDK backendを前提としたnodeが

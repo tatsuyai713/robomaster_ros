@@ -37,7 +37,10 @@ class LED(Module):
         pass
 
     def has_received_led_effect(self, msg: robomaster_msgs.msg.LEDEffect) -> None:
-        if getattr(robomaster, "IS_LAB_SDK", False):
+        if (
+            getattr(robomaster, "IS_LAB_SDK", False)
+            or getattr(robomaster, "IS_S1_WIFI_SDK", False)
+        ):
             effects = {
                 0: robomaster.led.EFFECT_OFF,
                 1: robomaster.led.EFFECT_ON,

@@ -17,7 +17,7 @@ import robomaster.conn
 import robomaster.client
 
 
-from robomaster_ros.modules import modules
+from robomaster_ros.modules import ALL_MODULE_NAMES, get_modules
 from robomaster_ros.ftp import FtpConnection
 
 import rclpy
@@ -97,16 +97,32 @@ class RoboMasterROS(rclpy.node.Node):  # type: ignore
         robomaster.logger.setLevel(lib_log_level)
         requested_backend: str = self.declare_parameter(
             "sdk_backend", "official").value.lower()
+        if requested_backend not in {"official", "lab", "solo"}:
+            raise RuntimeError(
+                "sdk_backend must be one of: official, lab, solo"
+            )
         self.lab_sdk = bool(getattr(robomaster, "IS_LAB_SDK", False))
+        self.solo_sdk = bool(getattr(robomaster, "IS_S1_WIFI_SDK", False))
         if requested_backend == "lab" and not self.lab_sdk:
             raise RuntimeError(
                 "sdk_backend=lab requires LAB-SDK to be installed before robomaster_ros"
             )
-        if requested_backend != "lab" and self.lab_sdk:
+        if requested_backend == "solo" and not self.solo_sdk:
+            raise RuntimeError(
+                "sdk_backend=solo requires SDK/ to be installed before robomaster_ros"
+            )
+        if self.lab_sdk and requested_backend != "lab":
             self.get_logger().warning(
                 "LAB-SDK is imported; selecting the lab backend"
             )
             requested_backend = "lab"
+        if self.solo_sdk and requested_backend != "solo":
+            self.get_logger().warning(
+                "S1 Wi-Fi SDK is imported; selecting the solo backend"
+            )
+            requested_backend = "solo"
+        self.constrained_s1_sdk = self.lab_sdk or self.solo_sdk
+        self.sdk_backend = requested_backend
         conn_type: str = self.declare_parameter("conn_type", "sta").value[:]
         robot_ip: str = self.declare_parameter("robot_ip", "").value
         appid: str = self.declare_parameter("appid", "b6359877").value
@@ -123,14 +139,14 @@ class RoboMasterROS(rclpy.node.Node):  # type: ignore
             sn = None
         self.heartbeat_check_timer: Optional[rclpy.timer.Timer] = None
         self.connected = False
-        if conn_type == 'sta' and not (self.lab_sdk and robot_ip):
+        if conn_type == 'sta' and not self.constrained_s1_sdk:
             self.get_logger().info("Waiting for a robot")
             wait_for_robot(sn)
             self.get_logger().info("Found a robot")
-        if not self.lab_sdk:
+        if not self.constrained_s1_sdk:
             robomaster.conn.FtpConnection = FtpConnection
         # robomaster.conn.FtpConnection = FakeFtpConnection
-        if self.lab_sdk:
+        if self.constrained_s1_sdk:
             self.ep_robot = robomaster.robot.Robot(
                 robot_ip=robot_ip,
                 appid=appid,
@@ -141,7 +157,14 @@ class RoboMasterROS(rclpy.node.Node):  # type: ignore
         # For now, to handle simulations without FTP
         self.get_logger().info(f"Try to connect via {conn_type} to robot with sn {sn}")
         try:
-            self.ep_robot.initialize(conn_type=conn_type, sn=sn)
+            if self.constrained_s1_sdk:
+                self.ep_robot.initialize(
+                    conn_type=conn_type,
+                    sn=sn,
+                    enter_solo=self.solo_sdk,
+                )
+            else:
+                self.ep_robot.initialize(conn_type=conn_type, sn=sn)
         except (AttributeError, TypeError):
             self.get_logger().error("Could not connect")
             self.disconnection.set_result(False)
@@ -158,22 +181,21 @@ class RoboMasterROS(rclpy.node.Node):  # type: ignore
         self.joint_state_pub = self.create_publisher(
             sensor_msgs.msg.JointState, 'joint_states_p', 1)
         self.tf_broadcaster = tf2_ros.transform_broadcaster.TransformBroadcaster(self)
-        lab_supported_modules = {
-            'armor', 'battery', 'blaster', 'camera', 'chassis', 'gimbal', 'led'
+        available_modules = get_modules(self.constrained_s1_sdk)
+        requested_modules = {
+            name for name in ALL_MODULE_NAMES if self.enabled(name)
         }
         enabled_modules = {
-            name: module for name, module in modules.items() if self.enabled(name)
+            name: module
+            for name, module in available_modules.items()
+            if name in requested_modules
         }
-        if self.lab_sdk:
-            skipped = sorted(set(enabled_modules) - lab_supported_modules)
+        if self.constrained_s1_sdk:
+            skipped = sorted(requested_modules - set(available_modules))
             for name in skipped:
                 self.get_logger().warning(
-                    f"Disabling {name}: not available from stock S1 Lab commands"
+                    f"Disabling {name}: not available from {self.sdk_backend} backend"
                 )
-            enabled_modules = {
-                name: module for name, module in enabled_modules.items()
-                if name in lab_supported_modules
-            }
         self.modules = {
             name: module(self.ep_robot, self)
             for name, module in enabled_modules.items()
@@ -187,9 +209,9 @@ class RoboMasterROS(rclpy.node.Node):  # type: ignore
         self.stop()
 
     def start_heartbeat_check(self) -> None:
-        if self.lab_sdk:
-            # LAB-SDK owns the direct connection and robot-side command
-            # watchdog; the official private _client heartbeat is unavailable.
+        if self.constrained_s1_sdk:
+            # These backends own their direct connection/watchdog and do not
+            # expose the official private _client heartbeat.
             return
         self.heartbeat_check_timer = self.create_timer(5, self.heartbeat_check)
         self.heartbeat_handler = robomaster.client.MsgHandler(
@@ -216,7 +238,7 @@ class RoboMasterROS(rclpy.node.Node):  # type: ignore
                 module.stop()
                 # self.get_logger().info(f"Stopped module {module}")
             time.sleep(0.5)
-            if not self.connected and not self.lab_sdk:
+            if not self.connected and not self.constrained_s1_sdk:
                 self.ep_robot._client.stop()
             self.ep_robot.close()
             self.connected = False
