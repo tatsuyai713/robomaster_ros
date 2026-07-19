@@ -15,7 +15,10 @@ setup(
         ('share/' + package_name + '/launch', glob.glob('launch/*.launch.py')),
         ('share/' + package_name + '/config', glob.glob('config/*'))
     ],
-    install_requires=['setuptools', 'numpy', 'numpy-quaternion', 'pyyaml', 'robomaster'],
+    # Install either DJI's SDK or this repository's LAB-SDK explicitly.
+    # Depending on the PyPI "robomaster" package here would overwrite the
+    # selected backend in LAB deployments.
+    install_requires=['setuptools', 'numpy', 'numpy-quaternion', 'pyyaml'],
     zip_safe=True,
     maintainer='Jerome Guzzi',
     maintainer_email='jerome@idsia.ch',

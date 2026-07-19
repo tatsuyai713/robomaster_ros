@@ -38,6 +38,20 @@ def mode2api(mode: int) -> str:
 def move(api: robomaster.gimbal.Gimbal, pitch: float = 0, yaw: float = 0, pitch_speed: float = 30,
          yaw_speed: float = 0, frame: int = robomaster.gimbal.COORDINATE_CUR
          ) -> robomaster.gimbal.GimbalMoveAction:
+    if getattr(robomaster, "IS_LAB_SDK", False):
+        if frame == robomaster.gimbal.COORDINATE_CUR:
+            return api.move(
+                pitch=pitch,
+                yaw=yaw,
+                pitch_speed=pitch_speed,
+                yaw_speed=yaw_speed,
+            )
+        return api.moveto(
+            pitch=pitch,
+            yaw=yaw,
+            pitch_speed=pitch_speed,
+            yaw_speed=yaw_speed,
+        )
     if frame == robomaster.gimbal.COORDINATE_CUR:
         pitch = robomaster.util.GIMBAL_PITCH_MOVE_CHECKER.val2proto(pitch)
         yaw = robomaster.util.GIMBAL_YAW_MOVE_CHECKER.val2proto(yaw)

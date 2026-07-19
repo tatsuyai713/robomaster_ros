@@ -640,10 +640,9 @@ class Camera(robomaster.media.LiveView, Module):  # type: ignore
 
     def stop_audio_stream(self) -> bool:
         r = super().stop_audio_stream()
-        if r:
-            self._audio_publisher_thread = threading.Thread(
-                target=self._audio_publisher_task)
-            self._audio_publisher_thread.start()
+        if r and getattr(self, "_audio_publisher_thread", None) is not None:
+            self._audio_publisher_thread.join(timeout=1.0)
+            self._audio_publisher_thread = None
         return r
 
     def _audio_decoder_task(self) -> None:

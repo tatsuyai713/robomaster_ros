@@ -92,6 +92,7 @@ class Chassis(Module):
         self.logger = node.get_logger()
         self.node = node
         self.robot = robot
+        self.lab_sdk = bool(getattr(robomaster, "IS_LAB_SDK", False))
         desc = rcl_interfaces.msg.ParameterDescriptor(
             description=(
                 "Set the command deadline in seconds. Values less or equal to zero "
@@ -184,7 +185,7 @@ class Chassis(Module):
         self.position_period = 1.0 / chassis_rate
         if chassis_rate:
             self.subscribe(chassis_rate)
-        if status_rate:
+        if status_rate and not self.lab_sdk:
             self.api.sub_status(freq=status_rate, callback=self.updated_status)
 
         node.create_subscription(geometry_msgs.msg.Twist, 'cmd_vel', self.has_received_twist, 1)
@@ -308,6 +309,11 @@ class Chassis(Module):
         return rcl_interfaces.msg.SetParametersResult(successful=True)
 
     def engage(self, value: bool) -> None:
+        if self.lab_sdk:
+            self.logger.warning(
+                "[Chassis] engage_wheels is unavailable in stock S1 Lab mode"
+            )
+            return
         proto = robomaster.protocol.ProtoChassisSetWorkMode()
         proto._mode = 1 if value else 0
         self.api._send_sync_proto(proto)
@@ -328,22 +334,21 @@ class Chassis(Module):
 
     def subscribe(self, rate: Rate) -> None:
         if rate:
-            # There is no need to unsubscribe
-            self.api.sub_imu(freq=rate, callback=self.updated_imu)
             self.api.sub_attitude(freq=rate, callback=self.updated_attitude)
             self.api.sub_position(cs=1, freq=rate, callback=self.updated_position)
-            # TODO(Jerome): ignore if self.odom_twist_from_pose_diff is True
-            # if not self.odom_twist_from_pose_diff:
             self.api.sub_velocity(freq=rate, callback=self.updated_velocity)
-            self.api.sub_esc(freq=rate, callback=self.updated_esc)
+            if not self.lab_sdk:
+                self.api.sub_imu(freq=rate, callback=self.updated_imu)
+                self.api.sub_esc(freq=rate, callback=self.updated_esc)
             self.position_period = 1.0 / rate
 
     def unsubscribe(self) -> None:
         self.api.unsub_position()
         self.api.unsub_velocity()
         self.api.unsub_attitude()
-        self.api.unsub_imu()
-        self.api.unsub_esc()
+        if not self.lab_sdk:
+            self.api.unsub_imu()
+            self.api.unsub_esc()
 
     def stop(self) -> None:
         self._move_action_server.destroy()
@@ -351,7 +356,8 @@ class Chassis(Module):
         if self.node.connected:
             self.api.drive_wheels(0, 0, 0, 0)
             self.unsubscribe()
-            self.api.unsub_status()
+            if not self.lab_sdk:
+                self.api.unsub_status()
 
     def has_received_twist(self, msg: geometry_msgs.msg.Twist) -> None:
         if self.twist_to_wheel_speeds:

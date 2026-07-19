@@ -1,0 +1,20 @@
+<launch>
+  <arg name="name" default="$(env RM_NAME '')"/>
+  <arg name="robot_ip" default="$(env RM_ROBOT_IP '')"/>
+  <arg name="appid" default="$(env RM_APPID 'b6359877')"/>
+  <arg name="conn_type" default="sta"/>
+  <arg name="with_model_description" default="true"/>
+
+  <include file="$(find-pkg-share robomaster_ros)/launch/main.launch">
+    <arg name="name" value="$(var name)"/>
+    <arg name="model" value="s1"/>
+    <arg name="sdk_backend" value="lab"/>
+    <arg name="robot_ip" value="$(var robot_ip)"/>
+    <arg name="appid" value="$(var appid)"/>
+    <arg name="conn_type" value="$(var conn_type)"/>
+    <arg name="with_model_description" value="$(var with_model_description)"/>
+    <arg name="speaker" value="false"/>
+    <arg name="chassis_status_rate" value="0"/>
+    <arg name="video_resolution" value="720"/>
+  </include>
+</launch>

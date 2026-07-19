@@ -5,6 +5,30 @@ This repository contains a ROS2 driver for the DJI Robomaster family of robots (
 
 Full documentation available at https://jeguzzi.github.io/robomaster_ros.
 
+## RoboMaster S1 LAB-SDK backend
+
+This copy can use the LAB-SDK bundled with the parent
+`RoboMaster-S1-WiFi-SDK` repository. Install the selected backend explicitly;
+the ROS package does not install another `robomaster` package implicitly.
+
+```bash
+cd /path/to/RoboMaster-S1-WiFi-SDK
+python3 -m pip uninstall -y robomaster
+python3 -m pip install ./SDK
+python3 -m pip install --no-deps ./LAB-SDK
+
+cd <ros2_ws>
+colcon build --packages-select robomaster_msgs robomaster_description robomaster_ros
+source install/setup.bash
+RM_ROBOT_IP=192.168.23.149 RM_APPID=b6359877 \
+  ros2 launch robomaster_ros s1_lab.launch
+```
+
+The LAB launch uses the 50 Hz S1 Lab DSP bridge, selects the supported 720p
+video path, and disables modules that require EP hardware or official-SDK
+private transports. Existing launch files continue to default to the official
+backend.
+
 
 ## Installation
 

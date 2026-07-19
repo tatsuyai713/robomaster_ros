@@ -37,6 +37,21 @@ class LED(Module):
         pass
 
     def has_received_led_effect(self, msg: robomaster_msgs.msg.LEDEffect) -> None:
+        if getattr(robomaster, "IS_LAB_SDK", False):
+            effects = {
+                0: robomaster.led.EFFECT_OFF,
+                1: robomaster.led.EFFECT_ON,
+                2: robomaster.led.EFFECT_BREATH,
+                3: robomaster.led.EFFECT_FLASH,
+            }
+            return self.api.set_led(
+                comp=robomaster.led.COMP_ALL,
+                r=channel(msg.color.r),
+                g=channel(msg.color.g),
+                b=channel(msg.color.b),
+                effect=effects.get(msg.effect, robomaster.led.EFFECT_ON),
+                freq=max(1, round(1.0 / max(msg.t1 + msg.t2, 0.01))),
+            )
         proto = robomaster.protocol.ProtoSetSystemLed()
         proto._ctrl_mode = 7
         proto._comp_mask = msg.mask
