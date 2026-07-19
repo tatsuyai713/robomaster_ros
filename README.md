@@ -29,6 +29,53 @@ video path, and disables modules that require EP hardware or official-SDK
 private transports. Existing launch files continue to default to the official
 backend.
 
+### ROS 2における公式SDK backendとの比較
+
+ここでいう「公式SDK」は、このdriverが通常使用するDJI公式SDK互換backendを指します。
+LAB-SDKはROS interfaceを可能な限り維持しますが、通信経路とS1 Lab runtimeで取得できる情報が異なります。
+
+| 項目 | 公式SDK backend | LAB-SDK backend |
+|---|---|---|
+| 選択方法 | `sdk_backend:=official`。既存launchのdefault | `sdk_backend:=lab`。`s1_lab.launch`で設定済み |
+| 対象robot | S1 / EP | S1のみ |
+| Python実行場所 | Host上の公式SDK | Host SDK + S1機体内Python 3.6 DSP |
+| 接続 | 公式connection discovery、SDK transport、DDS/private client | Windows App互換Wi-Fi/AppID接続、FTPによるDSP upload、UDP `40923`/`40924` |
+| `cmd_vel` | 公式`chassis.drive_speed()`へ変換 | Lab `chassis_ctrl.move_with_speed()`へ変換。移動中は最新stateを50 Hz更新 |
+| queue | 公式SDKの送信・Action queue | motionはlatest-only、stopはpriority、eventは32件上限。古い速度を後から再生しない |
+| 通信断時停止 | 公式SDKとdriver heartbeat/disconnection処理 | Host更新停止後に機体側watchdogが速度を減衰して停止 |
+| Position | 公式DDS `sub_position()` | `get_position_based_power_on()`による実測X/Y |
+| Velocity | 公式DDS `sub_velocity()` | `get_speed()`による実測forward/translation速度 |
+| Attitude | 公式DDS attitude | `get_attitude(chassis_yaw)`によるyawのみ。pitch/rollは`None` |
+| IMU / ESC / status | 公式DDSで購読 | stock S1 Lab commandにgetterがないため購読しない |
+| Telemetry rate | 公式DDSの対応frequency | 購読fieldだけを1/5/10/20/50 Hzでgetter取得。未購読getterは停止 |
+| Gimbal angle | 公式gimbal DDS | `get_axis_angle()`によるpitch/yaw。ground angleは`None` |
+| Gimbal/Chassis Action | 公式Action progress、完了push、abort/cancel | Lab command投入結果をAction互換objectで返す。実動作progress/cancel通知は非対応 |
+| Video | 公式LiveView、launchで解像度/protocol選択 | 親projectのApp互換raw streamをLiveView facadeへ接続。LAB launchは720p |
+| Audio受信 | 公式LiveView | 親projectのApp互換audio受信経路 |
+| Speaker再生 | 公式speaker module | stock S1 Lab制約のため`S1 Lab` launchでは無効 |
+| Heartbeat | 公式private `_client` heartbeat | private APIを呼ばず、LAB bridge watchdogを使用 |
+| Reconnect | 公式clientのdisconnection/heartbeatを利用 | private client再接続とは非互換。bridge/DSP再起動が必要になる場合がある |
+
+#### ROS module対応表
+
+| `robomaster_ros` module | 公式SDK | LAB-SDK | LAB-SDKでの扱い |
+|---|---:|---:|---|
+| `chassis` | 有効 | 有効 | position/velocity/yawと速度・距離・回転command。IMU/ESC/status/engageは無効 |
+| `gimbal` | 有効 | 有効 | 公開`move()`/`moveto()`/`drive_speed()`経路を使用 |
+| `camera` | 有効 | 有効 | App互換video/audio raw stream |
+| `battery` | 有効 | 有効 | percentは実測。他の公式battery tuple要素は取得不能のため0 |
+| `armor` | 有効 | 有効 | 基礎Wi-Fi/DUSS経路のhit event |
+| `blaster` | 有効 | 有効 | S1 Labで利用可能なIR/physical fire mapping |
+| `led` | 有効 | 有効 | Lab公開`set_led()`へ変換。mask/effectの一部は近似mapping |
+| `speaker` | 有効 | 無効 | `s1_lab.launch`で無効 |
+| `arm` / `gripper` | EPで有効 | 無効 | EP hardwareかつstock S1 Lab対象外 |
+| `servo` / `tof` / `uart` / `sensor_adapter` | 構成により有効 | 無効 | stock S1 Lab commandだけではROS data sourceを満たせない |
+| `pwm` / `sbus` / `vision` | 構成により有効 | 無効 | LAB backendのROS module allowlist外 |
+
+対応moduleでは既存ROS topic/action名を維持します。取得元が存在しないaxisや状態を0・積分・推定値で
+補完せず、購読しないか`None`として扱います。そのため、公式SDK backendを前提としたnodeが
+IMU、ESC、status、Action progressを必須とする場合は、そのままLAB-SDKへ切り替えられません。
+
 
 ## Installation
 
