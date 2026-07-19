@@ -39,22 +39,25 @@ LAB-SDKはROS interfaceを可能な限り維持しますが、通信経路とS1 
 | 選択方法 | `sdk_backend:=official`。既存launchのdefault | `sdk_backend:=lab`。`s1_lab.launch`で設定済み |
 | 対象robot | S1 / EP | S1のみ |
 | Python実行場所 | Host上の公式SDK | Host SDK + S1機体内Python 3.6 DSP |
-| 接続 | 公式connection discovery、SDK transport、DDS/private client | Windows App互換Wi-Fi/AppID接続、FTPによるDSP upload、UDP `40923`/`40924` |
+| 接続 | 公式connection discovery、SDK transport、private client | Windows App互換Wi-Fi/AppID接続、FTPによるDSP upload、UDP `40923`/`40924` |
 | `cmd_vel` | 公式`chassis.drive_speed()`へ変換 | Lab `chassis_ctrl.move_with_speed()`へ変換。移動中は最新stateを50 Hz更新 |
-| queue | 公式SDKの送信・Action queue | motionはlatest-only、stopはpriority、eventは32件上限。古い速度を後から再生しない |
+| command送信 | 通常commandはsocketへ即時送信。Actionは実行中targetを管理し、同一targetの重複を拒否 | motionはcapacity 1のlatest-only、独立stopはcapacity 8のpriority FIFO、単発commandはcapacity 32の有界FIFO |
 | 通信断時停止 | 公式SDKとdriver heartbeat/disconnection処理 | Host更新停止後に機体側watchdogが速度を減衰して停止 |
-| Position | 公式DDS `sub_position()` | `get_position_based_power_on()`による実測X/Y |
-| Velocity | 公式DDS `sub_velocity()` | `get_speed()`による実測forward/translation速度 |
-| Attitude | 公式DDS attitude | `get_attitude(chassis_yaw)`によるyawのみ。pitch/rollは`None` |
-| IMU / ESC / status | 公式DDSで購読 | stock S1 Lab commandにgetterがないため購読しない |
-| Telemetry rate | 公式DDSの対応frequency | 購読fieldだけを1/5/10/20/50 Hzでgetter取得。未購読getterは停止 |
-| Gimbal angle | 公式gimbal DDS | `get_axis_angle()`によるpitch/yaw。ground angleは`None` |
+| Position | 公式SDK内部telemetry配信層の`sub_position()` | `get_position_based_power_on()`による実測X/Y |
+| Velocity | 公式SDK内部telemetry配信層の`sub_velocity()` | `get_speed()`による実測forward/translation速度 |
+| Attitude | 公式SDK内部telemetry配信層のattitude | `get_attitude(chassis_yaw)`によるyawのみ。pitch/rollは`None` |
+| IMU / ESC / status | 公式SDK内部telemetry配信層で購読 | stock S1 Lab commandにgetterがないため購読しない |
+| Telemetry rate | 公式SDK購読APIの対応frequency | 購読fieldだけを1/5/10/20/50 Hzでgetter取得。未購読getterは停止 |
+| Gimbal angle | 公式SDK内部telemetry配信層 | `get_axis_angle()`によるpitch/yaw。ground angleは`None` |
 | Gimbal/Chassis Action | 公式Action progress、完了push、abort/cancel | Lab command投入結果をAction互換objectで返す。実動作progress/cancel通知は非対応 |
 | Video | 公式LiveView、launchで解像度/protocol選択 | 親projectのApp互換raw streamをLiveView facadeへ接続。LAB launchは720p |
 | Audio受信 | 公式LiveView | 親projectのApp互換audio受信経路 |
 | Speaker再生 | 公式speaker module | stock S1 Lab制約のため`S1 Lab` launchでは無効 |
 | Heartbeat | 公式private `_client` heartbeat | private APIを呼ばず、LAB bridge watchdogを使用 |
 | Reconnect | 公式clientのdisconnection/heartbeatを利用 | private client再接続とは非互換。bridge/DSP再起動が必要になる場合がある |
+
+公式SDKのmodule名`robomaster.dds`は、機体から購読したtelemetryをcallbackへ配るSDK内部層です。
+ROS 2の通信middlewareであるDDSそのものではなく、別SDKを意味しません。
 
 #### ROS module対応表
 
