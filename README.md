@@ -11,7 +11,8 @@ This copy can use the SOLO SDK or LAB-SDK bundled with the parent
 `RoboMaster-S1-WiFi-SDK` repository. Install the selected backend explicitly;
 the ROS package does not install another `robomaster` package implicitly. Use
 separate virtual environments: SOLO installs `SDK/` only; LAB installs its
-base transport dependency `SDK/` first and the LAB facade last.
+independent `LAB-SDK/` package only. The SDK packages do not import or depend
+on each other.
 
 SOLO backend:
 
@@ -32,8 +33,7 @@ LAB backend:
 ```bash
 cd /path/to/RoboMaster-S1-WiFi-SDK
 python3 -m pip uninstall -y robomaster robomaster-s1-wifi-sdk
-python3 -m pip install ./SDK
-python3 -m pip install --no-deps ./LAB-SDK
+python3 -m pip install ./LAB-SDK
 
 cd <ros2_ws>
 colcon build --packages-select robomaster_msgs robomaster_description robomaster_ros
@@ -47,6 +47,12 @@ host-side S1 Windows App-compatible SDK and enters SOLO mode without a DSP.
 Both select the supported 720p video path and disable modules that require EP
 hardware or official-SDK private transports. Existing launch files continue to
 default to the official backend.
+
+Both S1 launch files expose `audio`, `audio_raw`, `audio_opus`, and
+`audio_level`. Their default is `2` (on demand), so subscribing to
+`camera/audio_opus`, `camera/audio_raw`, or `camera/audio_level` starts the S1
+audio request automatically. Use `audio:=1` to keep all audio topics active or
+`audio:=-1` to disable them.
 
 `s1_lab.launch`から呼ばれる`Robot.initialize()`は、Connect、Lab mode遷移、
 DSPのFTP upload、MD5付きStartを順に自動実行します。各遷移には安定待ちがあり、
@@ -68,7 +74,7 @@ SOLO SDKとLAB-SDKはROS interfaceを可能な限り維持しますが、通信�
 | telemetry | 公式SDK内部配信層 | App/DUSS packetの実測decode | Lab controller getterの実測値 |
 | IMU / ESC / status | 対応 | 未解析のため無効 | getterがないため無効 |
 | Action | progress/完了push/cancel | 距離・角度Action未対応 | command投入互換。progress/cancel非対応 |
-| Video/audio | 公式LiveView | App互換raw stream | App互換raw stream |
+| Video/audio | 公式LiveView | raw H.264、Opus、48 kHz mono PCM | raw H.264、Opus、48 kHz mono PCM |
 | Heartbeat | 公式private `_client` | 直接SDK receive loop/SOLO keepalive | bridge watchdog |
 | 対応module | 機体構成に応じる | armor、battery、blaster、camera、chassis、gimbal、LED | 同左 |
 
@@ -83,7 +89,7 @@ LAB-SDKのlatest-only motionは追加のprocess間・UDP bridgeで古い速度�
 |---|---:|---:|---:|---|
 | chassis | 有効 | 有効 | 有効 | SOLOは速度/wheelのみ。LABは距離commandも部分対応。両方IMU/ESC/status無効 |
 | gimbal | 有効 | 有効 | 有効 | SOLOは速度のみ。LABは角度commandも部分対応 |
-| camera | 有効 | 有効 | 有効 | SOLO/LABはApp互換raw video/audio |
+| camera | 有効 | 有効 | 有効 | SOLO/LABはraw H.264、Opus topic、48 kHz mono PCM/audio level |
 | battery | 有効 | 有効 | 有効 | percent実測、未取得tuple要素は0 |
 | armor | 有効 | 有効 | 有効 | SOLOでは感度設定未対応 |
 | blaster / LED | 有効 | 有効 | 有効 | component/effectの一部を近似mapping |
