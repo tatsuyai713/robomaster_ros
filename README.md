@@ -42,11 +42,21 @@ RM_ROBOT_IP=192.168.23.149 RM_APPID=b6359877 \
   ros2 launch robomaster_ros s1_lab.launch
 ```
 
-The LAB launch uses the 50 Hz S1 Lab DSP bridge. The SOLO launch uses the
-host-side S1 Windows App-compatible SDK and enters SOLO mode without a DSP.
-Both select the supported 720p video path and disable modules that require EP
-hardware or official-SDK private transports. Existing launch files continue to
-default to the official backend.
+The S1-specific launch files select the LAB or SOLO backend, request the
+supported 720p video path, and disable modules that require EP hardware or
+official-SDK private transports. Existing launch files continue to default to
+the official backend. The lifecycle limitation below must be resolved before
+using either S1-specific launch path.
+
+> [!CAUTION]
+> The current driver client is not yet aligned with the public lifecycle of
+> either bundled S1 SDK. It passes an unsupported `enter_solo` keyword to the
+> official-shaped `Robot.initialize()` method, and it does not call the LAB
+> SDK's explicit enter/upload/program/bridge sequence. Consequently,
+> `s1_solo.launch` and `s1_lab.launch` are not currently verified launch
+> paths. SOLO integration must call `initialize()` and then `enter_solo()`;
+> LAB integration must implement the lifecycle documented in the parent
+> repository's `docs/lab-lifecycle.md`.
 
 Both S1 launch files expose `audio`, `audio_raw`, `audio_opus`, and
 `audio_level`. Their default is `2` (on demand), so subscribing to
@@ -54,10 +64,10 @@ Both S1 launch files expose `audio`, `audio_raw`, `audio_opus`, and
 audio request automatically. Use `audio:=1` to keep all audio topics active or
 `audio:=-1` to disable them.
 
-`s1_lab.launch`から呼ばれる`Robot.initialize()`は、Connect、Lab mode遷移、
-DSPのFTP upload、MD5付きStartを順に自動実行します。各遷移には安定待ちがあり、
-FTPは期限付きで再試行します。Start後は機体bridgeから実測telemetryが返るまで
-ROS nodeの初期化を成功扱いにせず、既定5秒でtimeoutします。
+LAB-SDKの`Robot.initialize()`は接続だけを行います。Lab mode遷移、DSPのFTP
+upload、MD5付きStart、Host bridge開始はそれぞれ明示的なAPIです。ROS clientを
+対応させる際は、telemetry確認までをnode初期化の成功条件にし、終了時にbridge、
+program、Lab mode、基礎接続を安全な順序で閉じる必要があります。
 
 ### ROS 2 backendの比較
 
@@ -70,18 +80,18 @@ SOLO SDKとLAB-SDKはROS interfaceを可能な限り維持しますが、通信�
 | Launch | `s1.launch` / `ep.launch` | `s1_solo.launch` | `s1_lab.launch` |
 | 実行場所 | Host | Host | Host + S1 Python 3.6 DSP |
 | 接続 | 公式SDK transport/private client | AppID claim + App互換SOLO/DUSS | AppID claim → Lab切替 → FTP/DSP → Start → telemetry応答確認 + UDP `40923/40924` |
-| `cmd_vel` | 公式`drive_speed()` | 直接control payloadを50 Hz保持 | Lab `move_with_speed()`を50 Hz更新 |
+| `cmd_vel` | 公式`drive_speed()` | 直接control payloadを50 Hz保持 | ROS messageごとにLab `move_with_speed()`を1回設定し、次の指令まで保持 |
 | telemetry | 公式SDK内部配信層 | App/DUSS packetの実測decode | Lab controller getterの実測値 |
 | IMU / ESC / status | 対応 | 未解析のため無効 | getterがないため無効 |
 | Action | progress/完了push/cancel | 距離・角度Action未対応 | command投入互換。progress/cancel非対応 |
 | Video/audio | 公式LiveView | raw H.264、Opus、48 kHz mono PCM | raw H.264、Opus、48 kHz mono PCM |
-| Heartbeat | 公式private `_client` | 直接SDK receive loop/SOLO keepalive | bridge watchdog |
+| Heartbeat | 公式private `_client` | 直接SDK receive loop/SOLO keepalive | Host bridge sessionと明示stop |
 | 対応module | 機体構成に応じる | armor、battery、blaster、camera、chassis、gimbal、LED | 同左 |
 
 公式SDKのmodule名`robomaster.dds`は、機体から購読したtelemetryをcallbackへ配るSDK内部層です。
 ROS 2の通信middlewareであるDDSそのものではなく、別SDKを意味しません。
-その受信telemetry queueは制御command queueではありません。公式SDKの通常commandは即時socket送信であり、
-LAB-SDKのlatest-only motionは追加のprocess間・UDP bridgeで古い速度を後から再生しないための差です。
+その受信telemetry queueは制御command queueではありません。公式SDKの通常commandは即時socket送信です。
+LAB-SDKは各commandを有界queueへ順番に1回投入し、機体側Lab controllerが次の速度指令またはstopまで速度を保持します。
 
 #### ROS module対応表
 
