@@ -92,6 +92,9 @@ class RoboMasterROS(rclpy.node.Node):  # type: ignore
 
     def __init__(self, executor: Optional[rclpy.executors.Executor] = None) -> None:
         super(RoboMasterROS, self).__init__("robomaster_ros", start_parameter_services=True)
+        # Keep shutdown safe when an import or module constructor fails partway
+        # through initialization.
+        self.modules = {}
         # robomaster.logger.set_level(logging.ERROR)
         lib_log_level : str = self.declare_parameter("lib_log_level", "ERROR").value.upper()
         robomaster.logger.setLevel(lib_log_level)

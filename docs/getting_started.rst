@@ -47,3 +47,38 @@ You are ready to start controlling the robot through ROS:
   $ ros2 launch robomaster_ros main.launch model:=<ep|s1>
 
 Pick your robot type in ``model:=<ep|s1>`` to publish the correct URDF model and enable the appropriate modules.
+
+S1 teleoperation
+----------------
+
+Build and source the workspace, start the S1 driver as usual, and then start one
+of the teleoperation nodes below. Both publish ``cmd_vel`` and
+``cmd_gimbal`` in the selected namespace.
+
+For a PS5 DualSense controller (USB or Bluetooth)::
+
+  ros2 launch robomaster_ros s1_joy.launch device_id:=0
+
+The DualSense uses SDL's standard mapping: the left stick translates the
+chassis, the right stick controls gimbal yaw and pitch, L2 turns left, and R2
+turns right. L2/R2 remain analog rather than becoming on/off buttons. To inspect
+the controller and find its ``device_id`` use
+``ros2 run joy joy_enumerate_devices``. This mapping is the same over USB and
+Bluetooth.
+
+For keyboard control, run the node directly in an interactive terminal::
+
+  ros2 run robomaster_ros s1_teleop --ros-args \
+    -p use_joy:=false -p use_keyboard:=true
+
+The keys follow the RoboMaster app's keyboard layout: W/A/S/D move
+forward/left/back/right and Shift plus a movement key accelerates. Because a
+terminal cannot report a standalone Shift key, Space toggles boost as a
+convenience. Arrow keys control the gimbal, Q/E rotate the chassis, and X stops
+immediately. Commands stop automatically when key repeats or joystick messages
+cease.
+
+Useful parameters are ``linear_speed`` (m/s), ``angular_speed`` (rad/s),
+``gimbal_speed`` (rad/s), ``deadzone``, and ``boost_multiplier``. Most SDL
+controllers report an unpressed trigger as -1; set
+``trigger_released_value:=1.0`` if yours reports +1.
