@@ -1,5 +1,4 @@
 import math
-import quaternion
 import time
 
 import rclpy.action
@@ -59,7 +58,7 @@ def esc2angular_speed(value: int) -> float:
 
 
 def quaternion_from_euler(roll: float, pitch: float, yaw: float
-                          ) -> quaternion.quaternion:
+                          ) -> Tuple[float, float, float, float]:
     cy = math.cos(yaw * 0.5)
     sy = math.sin(yaw * 0.5)
     cp = math.cos(pitch * 0.5)
@@ -70,7 +69,7 @@ def quaternion_from_euler(roll: float, pitch: float, yaw: float
     x = sr * cp * cy - cr * sp * sy
     y = cr * sp * cy + sr * cp * sy
     z = cr * cp * sy - sr * sp * cy
-    return quaternion.as_quat_array([w, x, y, z])
+    return (x, y, z, w)
 
 
 def wheel_speeds_from_twist(vx: float, vy: float, vtheta: float,
@@ -427,8 +426,8 @@ class Chassis(Module):
         else:
             pitch = -rad(msg[1])
             roll = rad(msg[2])
-        q = quaternion_from_euler(yaw=yaw, pitch=pitch, roll=roll)
-        (orientation.x, orientation.y, orientation.z, orientation.w) = (q.x, q.y, q.z, q.w)
+        orientation.x, orientation.y, orientation.z, orientation.w = quaternion_from_euler(
+            yaw=yaw, pitch=pitch, roll=roll)
 
     # (acc, ang vel)
     def updated_imu(self, msg: Tuple[float, float, float, float, float, float]) -> None:

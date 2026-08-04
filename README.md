@@ -100,13 +100,6 @@ sudo apt install -y \
   "ros-${ROS_DISTRO}-joy"
 ```
 
-`numpy-quaternion`がない場合は、使用中のPython環境へ追加してください。Ubuntu 24.04の
-システムPythonへユーザー単位で追加する例です。
-
-```bash
-python3 -m pip install --user --break-system-packages numpy-quaternion
-```
-
 ## Workspaceを準備
 
 標準の配置は`~/ros2_ws/src/robomaster_ros`です。
@@ -438,7 +431,7 @@ SDKソースはlaunchが追加しますが、共通のPython依存packageはシ�
 importできる必要があります。
 
 ```bash
-python3 -c "import av, numpy, qrcode, quaternion, yaml; print('OK')"
+python3 -c "import av, numpy, qrcode, yaml; print('OK')"
 ```
 
 不足しているpackageは「必要環境」の手順で追加してください。

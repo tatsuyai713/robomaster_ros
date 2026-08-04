@@ -29,7 +29,7 @@ RUN /bin/sed -i \
   '/source "\/opt\/ros\/$ROS_DISTRO\/setup.bash"/a source "\/opt\/ros\/ws\/setup.bash"' \
   /ros_entrypoint.sh
 
-RUN python3 -m pip install -U numpy numpy-quaternion PyYaml av
+RUN python3 -m pip install -U numpy PyYaml av
 RUN python3 -m pip install git+https://github.com/jeguzzi/RoboMaster-SDK.git
 RUN python3 -m pip install -i https://test.pypi.org/simple/ rm-libmedia-codec
 
@@ -39,4 +39,3 @@ RUN mkdir -p /ros_ws/src \
     && source /ros_entrypoint.sh \
     && colcon build --install-base /opt/ros/ws --merge-install \
     && rm -r /ros_ws
-

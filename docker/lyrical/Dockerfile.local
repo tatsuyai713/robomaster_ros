@@ -25,7 +25,7 @@ RUN mkdir -p /ros_ws/src \
     && colcon build --install-base /opt/ros/iron --merge-install \
     && rm -r /ros_ws
 
-RUN python3 -m pip install -U numpy numpy-quaternion PyYaml av
+RUN python3 -m pip install -U numpy PyYaml av
 RUN python3 -m pip install git+https://github.com/jeguzzi/RoboMaster-SDK.git
 RUN python3 -m pip install git+https://github.com/jeguzzi/RoboMaster-SDK.git#"egg=libmedia_codec&subdirectory=lib/libmedia_codec"
 

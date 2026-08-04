@@ -32,7 +32,7 @@ RUN /bin/sed -i \
   '/source "\/opt\/ros\/$ROS_DISTRO\/setup.bash"/a source "\/opt\/ros\/ws\/setup.bash"' \
   /ros_entrypoint.sh
 
-RUN python3 -m pip install -U numpy numpy-quaternion PyYaml av imageio
+RUN python3 -m pip install -U numpy PyYaml av imageio
 RUN python3 -m pip install git+https://github.com/jeguzzi/RoboMaster-SDK.git
 RUN python3 -m pip install git+https://github.com/jeguzzi/RoboMaster-SDK.git#"egg=rm_libmedia_codec&subdirectory=lib/libmedia_codec"
 

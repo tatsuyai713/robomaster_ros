@@ -46,7 +46,7 @@ which fixes some issues of the upstream repo.
    .. code-block:: console
 
       sudo apt install libopus-dev python3-pip
-      python3 -m pip install -U numpy numpy-quaternion pyyaml
+      python3 -m pip install -U numpy pyyaml
 
 #. Install the RoboMaster-SDK
 
