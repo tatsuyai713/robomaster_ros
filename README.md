@@ -101,6 +101,86 @@ sudo apt install -y \
   "ros-${ROS_DISTRO}-joy"
 ```
 
+### WSL 2を使う場合
+
+S1探索はUDP broadcastを使用します。WSL 2の既定NATではWindows Hostが接続している
+Wi-Fiのbroadcastを受信できない場合があるため、Windows 11 22H2以降ではmirrored
+networkingを使用します。このmodeではWindowsとWSLがネットワークインターフェースと
+IPを共有し、multicastとLAN接続も利用できます。
+
+Windows PowerShellで`.wslconfig`を開きます。
+
+```powershell
+notepad.exe "$env:USERPROFILE\.wslconfig"
+```
+
+次の内容を保存します。既存の`[wsl2]` sectionがある場合は、同じsectionを重複させず
+項目を追加してください。
+
+```ini
+[wsl2]
+networkingMode=mirrored
+dnsTunneling=true
+firewall=true
+autoProxy=true
+```
+
+PowerShellでWSLを完全停止し、起動し直します。
+
+```powershell
+wsl --shutdown
+wsl -d Ubuntu-24.04
+```
+
+WSL内でWindowsと同じLAN側アドレスが見えることを確認します。
+
+```bash
+ip -4 addr show
+ip route
+```
+
+mirrored modeでもS1を探索できない場合は、管理者権限のPowerShellでWSLのHyper-V
+Firewallへ探索用UDP `45678`とLAB telemetry用UDP `40924`の受信規則を追加します。
+
+```powershell
+New-NetFirewallHyperVRule `
+  -Name "RoboMasterS1Discovery" `
+  -DisplayName "RoboMaster S1 discovery for WSL" `
+  -Direction Inbound `
+  -Action Allow `
+  -VMCreatorId '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' `
+  -Protocol UDP `
+  -LocalPorts 45678
+
+New-NetFirewallHyperVRule `
+  -Name "RoboMasterS1LabTelemetry" `
+  -DisplayName "RoboMaster S1 LAB telemetry for WSL" `
+  -Direction Inbound `
+  -Action Allow `
+  -VMCreatorId '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' `
+  -Protocol UDP `
+  -LocalPorts 40924
+```
+
+規則を確認します。
+
+```powershell
+Get-NetFirewallHyperVRule |
+  Where-Object Name -Like "RoboMasterS1*"
+```
+
+規則追加後も探索できない場合に限り、原因切り分けとしてWSLの受信を一時的に全許可
+できます。
+
+```powershell
+Set-NetFirewallHyperVVMSetting `
+  -Name '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' `
+  -DefaultInboundAction Allow
+```
+
+全許可は攻撃面を広げるため、信頼できるLANでの一時確認に限定してください。組織管理
+PCでは管理者のセキュリティ方針を優先します。
+
 ## Workspaceを準備
 
 標準の配置は`~/ros2_ws/src/robomaster_ros`です。
@@ -136,68 +216,11 @@ source install/setup.bash
 ros2 pkg prefix robomaster_ros
 ```
 
-## S1へ接続
+## QRコードから初回接続
 
-S1とPCを同じWi-Fiへ接続します。`RM_ROBOT_IP`を指定しない場合、SOLO/LAB launchは
-3秒間S1を探索し、見つかった一覧の先頭へ接続します。純正RoboMasterアプリは
-制御セッションが競合しないよう終了してください。
+### 1. Wi-Fi登録QRを生成
 
-```bash
-export RM_APPID=b6359877
-```
-
-IPを固定する場合だけ指定します。
-
-```bash
-export RM_ROBOT_IP=192.168.23.149
-```
-
-LAB backendを起動します。
-
-```bash
-cd ~/ros2_ws
-source /opt/ros/jazzy/setup.bash
-source install/setup.bash
-ros2 launch robomaster_ros s1_lab.launch
-```
-
-`s1_lab.launch`は既定で次のソースをdriverの`PYTHONPATH`へ追加します。LAB SDKを
-pip installする必要はありません。
-
-```text
-~/ros2_ws/src/robomaster_ros/robomaster_s1_wifi_sdk/LAB-SDK
-```
-
-SOLO backendも同じbuildから起動できます。
-
-```bash
-ros2 launch robomaster_ros s1_solo.launch
-```
-
-探索時間を変更する場合:
-
-```bash
-ros2 launch robomaster_ros s1_lab.launch discovery_timeout:=6.0
-```
-
-標準以外の場所へcloneした場合は、launch引数でソースディレクトリを指定します。
-
-```bash
-ros2 launch robomaster_ros s1_lab.launch \
-  backend_path:=/absolute/path/to/robomaster_ros/robomaster_s1_wifi_sdk/LAB-SDK
-```
-
-接続状態を別端末から確認します。
-
-```bash
-ros2 topic echo /connected --once
-```
-
-`data: true`なら接続済みです。
-
-## GUIを起動
-
-S1をWi-Fiへ登録するQRコードの生成GUIを起動します。
+PCをS1と接続するWi-Fiへ参加させ、QR生成GUIを起動します。
 
 ```bash
 cd ~/ros2_ws
@@ -206,32 +229,115 @@ source install/setup.bash
 ros2 launch robomaster_ros wifi_qr_gui.launch.py
 ```
 
-LAB SDKを使用する接続・操作GUIを起動します。`RM_ROBOT_IP`と`RM_APPID`を設定済み
-なら、その値が初期値になります。
+GUIで次の順に操作します。
+
+1. `SSID`へPCが接続中のWi-Fi名を入力する。
+2. `Password`へWi-Fiパスワードを入力する。
+3. `Header8 hex`欄の横にある`Generate`を押して、新しいAppIDを生成する。
+4. `QR AppID`に表示された8桁の値を記録する。
+5. 左側の`Generate`を押してQRコードを表示する。
+
+`Save PNG`は任意です。QR画像にはSSIDとパスワードが含まれるため、共有、公開issueへの
+添付、Gitへのcommitをしないでください。
+
+### 2. S1をWi-Fiへ登録
+
+1. S1の電源を入れる。
+2. RoboMaster純正アプリでS1のWi-Fiルーター接続操作を開始する。
+3. GUIに表示したQRコードをS1のカメラへ向けて読み取らせる。
+4. アプリまたはS1で接続完了を確認する。
+5. PCも同じWi-Fiへ接続されていることを確認する。
+6. 純正アプリを終了する。
+
+同時に純正アプリを接続すると制御セッションが競合する可能性があります。Wi-Fiの
+AP/client isolationも無効にしてください。
+
+### 3. AppIDと自動探索を設定
+
+QR GUIの`QR AppID`へ表示された値を設定します。次の値は例なので、実際に記録した値へ
+置き換えてください。
+
+```bash
+export RM_APPID=a2be7ce8
+unset RM_ROBOT_IP
+```
+
+`RM_ROBOT_IP`が空の場合、SOLO/LAB driverは3秒間S1を探索し、検出一覧の先頭へ
+接続します。探索時間を延ばす場合:
+
+```bash
+ros2 launch robomaster_ros s1_lab.launch discovery_timeout:=6.0
+```
+
+IPを固定する場合だけ指定します。
+
+```bash
+export RM_ROBOT_IP=192.168.23.149
+```
+
+### 4-A. LAB GUIで接続
+
+LAB SDKの接続、bridge起動、機体操作、telemetry確認を1画面で行います。
 
 ```bash
 ros2 launch robomaster_ros s1_lab_gui.launch.py
 ```
 
-値をlaunch引数で指定する場合:
+GUIで`Search`を実行してS1を選ぶか、`Robot IP`へ既知のIPを入力し、接続とLAB bridge
+起動を行います。値をlaunch引数で指定する場合:
 
 ```bash
 ros2 launch robomaster_ros s1_lab_gui.launch.py \
   robot_ip:=192.168.23.149 \
-  appid:=b6359877
+  appid:="$RM_APPID"
 ```
 
-標準以外の場所へcloneした場合は、両launchで`app_root`を指定します。
+### 4-B. LAB ROS driverで接続
 
 ```bash
-ros2 launch robomaster_ros wifi_qr_gui.launch.py \
-  app_root:=/absolute/path/to/robomaster_s1_wifi_sdk
+ros2 launch robomaster_ros s1_lab.launch
+```
+
+`s1_lab.launch`はLAB SDKをインストールせず、次のソースを直接読み込みます。
+
+```text
+~/ros2_ws/src/robomaster_ros/robomaster_s1_wifi_sdk/LAB-SDK
+```
+
+接続状態を別端末から確認します。
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source ~/ros2_ws/install/setup.bash
+ros2 topic echo /connected --once
+```
+
+`data: true`なら接続済みです。
+
+### 4-C. SOLO ROS driverで接続
+
+LAB bridgeを使わず、PCからS1へ直接制御する場合:
+
+```bash
+ros2 launch robomaster_ros s1_solo.launch
 ```
 
 > [!WARNING]
 > `s1_lab_gui.launch.py`と`s1_lab.launch`は同じS1の制御セッションとLAB bridgeを
 > 使用します。同じ機体へ同時に接続せず、一方を終了してからもう一方を起動して
 > ください。
+
+### 標準以外のclone場所
+
+driverでは`backend_path`、GUIでは`app_root`を指定します。
+
+```bash
+ros2 launch robomaster_ros s1_lab.launch \
+  backend_path:=/absolute/path/to/robomaster_ros/robomaster_s1_wifi_sdk/LAB-SDK
+
+ros2 launch robomaster_ros wifi_qr_gui.launch.py \
+  app_root:=/absolute/path/to/robomaster_s1_wifi_sdk
+```
 
 機体側bridgeの転送と起動にはFTP `21`、Host bridgeにはUDP `40923`と`40924`も
 使用します。
