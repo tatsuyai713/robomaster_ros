@@ -10,6 +10,7 @@
   <arg name="sdk_backend" default="official" description="SDK backend: official, lab, or solo"/>
   <arg name="backend_path" default="" description="Source directory containing the selected robomaster Python package"/>
   <arg name="robot_ip" default="$(env RM_ROBOT_IP '')" description="Robot IP; recommended for LAB-SDK and SOLO SDK"/>
+  <arg name="discovery_timeout" default="3.0" description="S1 discovery timeout when robot_ip is empty"/>
   <arg name="appid" default="$(env RM_APPID 'b6359877')" description="Windows App-compatible AppID used by LAB-SDK and SOLO SDK"/>
   <arg name="lib_log_level" default="ERROR" description="Robomaster SDK logging level"/>
   <arg name="reconnect" default="true" description="Wait for reconnections"/>
@@ -140,6 +141,7 @@
     <param name="conn_type" value="$(var conn_type)"/>
     <param name="sdk_backend" value="$(var sdk_backend)"/>
     <param name="robot_ip" value="$(var robot_ip)"/>
+    <param name="discovery_timeout" value="$(var discovery_timeout)"/>
     <param name="appid" value="$(var appid)"/>
     <param name="lib_log_level" value="$(var lib_log_level)"/>
     <param name="mode" value="$(var gimbal_mode)"/>

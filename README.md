@@ -83,13 +83,14 @@ sudo apt install -y \
   git \
   python3-colcon-common-extensions \
   python3-full \
-  python3-pip \
   python3-av \
   python3-evdev \
   python3-numpy \
   python3-pil \
+  python3-pil.imagetk \
   python3-qrcode \
   python3-rosdep \
+  python3-tk \
   python3-yaml \
   libopus-dev \
   "ros-${ROS_DISTRO}-xacro" \
@@ -137,12 +138,18 @@ ros2 pkg prefix robomaster_ros
 
 ## S1へ接続
 
-S1とPCを同じWi-Fiへ接続し、S1のIPとAppIDを指定します。純正RoboMasterアプリは
+S1とPCを同じWi-Fiへ接続します。`RM_ROBOT_IP`を指定しない場合、SOLO/LAB launchは
+3秒間S1を探索し、見つかった一覧の先頭へ接続します。純正RoboMasterアプリは
 制御セッションが競合しないよう終了してください。
 
 ```bash
-export RM_ROBOT_IP=192.168.23.149
 export RM_APPID=b6359877
+```
+
+IPを固定する場合だけ指定します。
+
+```bash
+export RM_ROBOT_IP=192.168.23.149
 ```
 
 LAB backendを起動します。
@@ -167,6 +174,12 @@ SOLO backendも同じbuildから起動できます。
 ros2 launch robomaster_ros s1_solo.launch
 ```
 
+探索時間を変更する場合:
+
+```bash
+ros2 launch robomaster_ros s1_lab.launch discovery_timeout:=6.0
+```
+
 標準以外の場所へcloneした場合は、launch引数でソースディレクトリを指定します。
 
 ```bash
@@ -181,6 +194,44 @@ ros2 topic echo /connected --once
 ```
 
 `data: true`なら接続済みです。
+
+## GUIを起動
+
+S1をWi-Fiへ登録するQRコードの生成GUIを起動します。
+
+```bash
+cd ~/ros2_ws
+source /opt/ros/jazzy/setup.bash
+source install/setup.bash
+ros2 launch robomaster_ros wifi_qr_gui.launch.py
+```
+
+LAB SDKを使用する接続・操作GUIを起動します。`RM_ROBOT_IP`と`RM_APPID`を設定済み
+なら、その値が初期値になります。
+
+```bash
+ros2 launch robomaster_ros s1_lab_gui.launch.py
+```
+
+値をlaunch引数で指定する場合:
+
+```bash
+ros2 launch robomaster_ros s1_lab_gui.launch.py \
+  robot_ip:=192.168.23.149 \
+  appid:=b6359877
+```
+
+標準以外の場所へcloneした場合は、両launchで`app_root`を指定します。
+
+```bash
+ros2 launch robomaster_ros wifi_qr_gui.launch.py \
+  app_root:=/absolute/path/to/robomaster_s1_wifi_sdk
+```
+
+> [!WARNING]
+> `s1_lab_gui.launch.py`と`s1_lab.launch`は同じS1の制御セッションとLAB bridgeを
+> 使用します。同じ機体へ同時に接続せず、一方を終了してからもう一方を起動して
+> ください。
 
 機体側bridgeの転送と起動にはFTP `21`、Host bridgeにはUDP `40923`と`40924`も
 使用します。

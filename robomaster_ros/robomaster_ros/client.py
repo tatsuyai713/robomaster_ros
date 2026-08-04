@@ -86,6 +86,14 @@ def wait_for_robot(serial_number: Optional[str]) -> None:
             time.sleep(random.uniform(1.0, 2.0))
 
 
+def discover_first_robot_ip(timeout: float) -> Optional[str]:
+    scan_robot_ip_list = getattr(robomaster.conn, "scan_robot_ip_list", None)
+    if not callable(scan_robot_ip_list):
+        return None
+    robot_ips = scan_robot_ip_list(timeout=timeout)
+    return str(robot_ips[0]) if robot_ips else None
+
+
 class RoboMasterROS(rclpy.node.Node):  # type: ignore
 
     initialized: bool = False
@@ -128,7 +136,20 @@ class RoboMasterROS(rclpy.node.Node):  # type: ignore
         self.sdk_backend = requested_backend
         conn_type: str = self.declare_parameter("conn_type", "sta").value[:]
         robot_ip: str = self.declare_parameter("robot_ip", "").value
+        discovery_timeout: float = self.declare_parameter(
+            "discovery_timeout", 3.0).value
         appid: str = self.declare_parameter("appid", "b6359877").value
+        if self.constrained_s1_sdk and not robot_ip:
+            self.get_logger().info(
+                f"Discovering RoboMaster S1 for {discovery_timeout:.1f} seconds"
+            )
+            robot_ip = discover_first_robot_ip(discovery_timeout) or ""
+            if not robot_ip:
+                raise RuntimeError(
+                    "No RoboMaster S1 discovered; set robot_ip explicitly or "
+                    "check the Wi-Fi and firewall"
+                )
+            self.get_logger().info(f"Using first discovered RoboMaster S1: {robot_ip}")
         self.reconnect: bool = self.declare_parameter("reconnect", True).value
         sn: Optional[str] = self.declare_parameter("serial_number", "").value
         if sn:

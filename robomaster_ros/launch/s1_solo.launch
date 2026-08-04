@@ -1,6 +1,7 @@
 <launch>
   <arg name="name" default="$(env RM_NAME '')"/>
   <arg name="robot_ip" default="$(env RM_ROBOT_IP '')"/>
+  <arg name="discovery_timeout" default="3.0"/>
   <arg name="appid" default="$(env RM_APPID 'b6359877')"/>
   <arg name="backend_path"
     default="$(env HOME)/ros2_ws/src/robomaster_ros/robomaster_s1_wifi_sdk/SDK"
@@ -18,6 +19,7 @@
     <arg name="sdk_backend" value="solo"/>
     <arg name="backend_path" value="$(var backend_path)"/>
     <arg name="robot_ip" value="$(var robot_ip)"/>
+    <arg name="discovery_timeout" value="$(var discovery_timeout)"/>
     <arg name="appid" value="$(var appid)"/>
     <arg name="conn_type" value="$(var conn_type)"/>
     <arg name="with_model_description" value="$(var with_model_description)"/>
