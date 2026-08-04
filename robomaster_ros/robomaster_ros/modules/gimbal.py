@@ -127,7 +127,9 @@ class Gimbal(Module):
 
     def stop(self) -> None:
         if self.node.connected:
-            self.api.stop()
+            # Gimbal has no stop() in the official/LAB-SDK API contract;
+            # zero speed is the equivalent stop command.
+            self.api.drive_speed(pitch_speed=0.0, yaw_speed=0.0)
         if self.node.connected:
             self.api.unsub_angle()
         self._move_gimbal_action_server.destroy()

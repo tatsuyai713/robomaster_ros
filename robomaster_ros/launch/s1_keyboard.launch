@@ -1,0 +1,12 @@
+<launch>
+  <arg name="name" default=""/>
+
+  <push-ros-namespace namespace="$(var name)"/>
+
+  <node name="s1_teleop" pkg="robomaster_ros" exec="s1_teleop"
+        output="screen" emulate_tty="true">
+    <param name="use_joy" value="false"/>
+    <param name="use_keyboard" value="true"/>
+  </node>
+</launch>
+

@@ -1,0 +1,17 @@
+<launch>
+  <arg name="name" default=""/>
+  <arg name="device_id" default="0"/>
+
+  <push-ros-namespace namespace="$(var name)"/>
+
+  <!-- SDL normalizes the PS5 DualSense to a stable game-controller axis order. -->
+  <node name="game_controller" pkg="joy" exec="game_controller_node" output="screen">
+    <param name="device_id" value="$(var device_id)"/>
+    <param name="deadzone" value="0.0"/>
+  </node>
+
+  <node name="s1_teleop" pkg="robomaster_ros" exec="s1_teleop" output="screen">
+    <param name="use_joy" value="true"/>
+    <param name="use_keyboard" value="false"/>
+  </node>
+</launch>

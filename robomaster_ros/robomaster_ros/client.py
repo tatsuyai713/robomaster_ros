@@ -92,6 +92,9 @@ class RoboMasterROS(rclpy.node.Node):  # type: ignore
 
     def __init__(self, executor: Optional[rclpy.executors.Executor] = None) -> None:
         super(RoboMasterROS, self).__init__("robomaster_ros", start_parameter_services=True)
+        # Keep shutdown safe when an import or module constructor fails partway
+        # through initialization.
+        self.modules = {}
         # robomaster.logger.set_level(logging.ERROR)
         lib_log_level : str = self.declare_parameter("lib_log_level", "ERROR").value.upper()
         robomaster.logger.setLevel(lib_log_level)
@@ -156,17 +159,22 @@ class RoboMasterROS(rclpy.node.Node):  # type: ignore
         self.disconnection = rclpy.task.Future(executor=executor or rclpy.get_global_executor())
         # For now, to handle simulations without FTP
         self.get_logger().info(f"Try to connect via {conn_type} to robot with sn {sn}")
+        self.lab_bridge_started = False
         try:
-            if self.constrained_s1_sdk:
-                self.ep_robot.initialize(
-                    conn_type=conn_type,
-                    sn=sn,
-                    enter_solo=self.solo_sdk,
-                )
-            else:
-                self.ep_robot.initialize(conn_type=conn_type, sn=sn)
-        except (AttributeError, TypeError):
-            self.get_logger().error("Could not connect")
+            # The public robomaster.robot.Robot facade only exposes
+            # initialize(conn_type, proto_type, sn): mode entry is a separate,
+            # explicit step for both backends.
+            self.ep_robot.initialize(conn_type=conn_type, sn=sn)
+            if self.solo_sdk:
+                self.ep_robot.enter_solo()
+            elif self.lab_sdk:
+                self.ep_robot.enter_lab()
+                digest = self.ep_robot.upload_lab_bridge()
+                self.ep_robot.start_lab_program(digest)
+                self.ep_robot.start_lab_bridge()
+                self.lab_bridge_started = True
+        except Exception as exc:
+            self.get_logger().error(f"Could not connect: {exc}")
             self.disconnection.set_result(False)
             return
         self.get_logger().info("Connected")
@@ -240,6 +248,15 @@ class RoboMasterROS(rclpy.node.Node):  # type: ignore
             time.sleep(0.5)
             if not self.connected and not self.constrained_s1_sdk:
                 self.ep_robot._client.stop()
+            if self.lab_sdk and self.lab_bridge_started:
+                # close() tears down the bridge and lab mode but not the
+                # in-robot program; stop it explicitly first.
+                try:
+                    self.ep_robot.stop_lab_bridge()
+                    self.ep_robot.stop_lab_program()
+                except Exception as exc:
+                    self.get_logger().warning(f"Error while stopping lab program: {exc}")
+                self.lab_bridge_started = False
             self.ep_robot.close()
             self.connected = False
             self.connected_pub.publish(std_msgs.msg.Bool(data=False))

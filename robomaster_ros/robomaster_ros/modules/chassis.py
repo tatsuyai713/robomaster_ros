@@ -7,6 +7,7 @@ import rclpy.action
 import sensor_msgs.msg
 import geometry_msgs.msg
 import robomaster_msgs.msg
+import robomaster_msgs.action
 import nav_msgs.msg
 import std_srvs.srv
 import rcl_interfaces.msg
