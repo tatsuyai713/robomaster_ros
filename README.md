@@ -1,19 +1,14 @@
 # RoboMaster ROS 2
 
-DJI RoboMaster S1／EP用のROS 2ドライバです。このforkは親リポジトリ
-`RoboMaster-S1-WiFi-SDK`に含まれるS1用SOLO SDKとLAB-SDKに対応し、
-PS5 DualSenseおよびキーボード用テレオペレーションノードを提供します。
+DJI RoboMaster S1／EP用のROS 2ドライバです。このforkはsubmoduleとして含まれる
+S1用SOLO SDKとLAB-SDKに対応し、PS5 DualSenseおよびキーボード用
+テレオペレーションノードを提供します。
 
 > [!WARNING]
 > 本プロジェクトはDJI公式ソフトウェアではありません。初回は車輪を床から浮かせ、
 > 物理弾を抜き、停止指令が動作することを確認してください。
 
-親リポジトリから導入する場合は、colconワークスペース作成から実機接続までを説明した
-[ルートREADME](../README.md)も参照してください。
-
-This repository includes the SOLO SDK and LAB-SDK as the
-`robomaster_s1_wifi_sdk` submodule. Clone recursively or initialize it before
-installing a backend.
+SOLO SDKとLAB-SDKは`robomaster_s1_wifi_sdk` submoduleに含まれます。
 
 ```bash
 git submodule update --init --recursive
@@ -35,8 +30,12 @@ git submodule update --init --recursive
 | LAB | `s1_lab.launch` | PCから機体内Lab bridgeを経由 | Lab API、距離・角度command |
 | Official | `s1.launch` / `ep.launch` | DJI公式Python SDK | EPまたは公式SDK対応機 |
 
-SOLO SDKとLAB-SDKはどちらも`robomaster`というPython packageを提供するため、
-同じPython環境へ同時にインストールできません。
+SOLO SDKとLAB-SDKはどちらも`robomaster`というPython packageを提供します。
+このプロジェクトではSDKをPython環境へインストールせず、`s1_solo.launch`と
+`s1_lab.launch`が対応するソースディレクトリをdriverへ渡します。`main.launch`は
+driverプロセスの`PYTHONPATH`を設定し、driverは`client.py`をimportする前に同じ
+ディレクトリを`sys.path`へ追加します。ROS packageのbuild/install directoryは
+backend間で共通です。
 
 現在のドライバはbackendごとのlifecycleを処理します。
 
@@ -70,25 +69,28 @@ subscriptionは無効になります。
 - S1と相互通信できるWi-Fi
 - PS5を使う場合はROS 2 `joy` package
 
-ROS 2をsourceします。
+ROS 2をsourceします。Ubuntu 24.04では`humble`を`jazzy`へ置き換えてください。
 
 ```bash
 source /opt/ros/humble/setup.bash
 ```
-
-Ubuntu 24.04では`humble`を`jazzy`へ変更してください。
 
 依存パッケージをインストールします。
 
 ```bash
 sudo apt update
 sudo apt install -y \
+  git \
   python3-colcon-common-extensions \
   python3-full \
-  python3-venv \
   python3-pip \
+  python3-av \
   python3-evdev \
+  python3-numpy \
+  python3-pil \
+  python3-qrcode \
   python3-rosdep \
+  python3-yaml \
   libopus-dev \
   "ros-${ROS_DISTRO}-xacro" \
   "ros-${ROS_DISTRO}-launch-xml" \
@@ -98,105 +100,85 @@ sudo apt install -y \
   "ros-${ROS_DISTRO}-joy"
 ```
 
-## 現在のcloneをcolcon workspaceとして使用
-
-親リポジトリを別のworkspaceへ移動する必要はありません。以下では現在のclone先
-`~/repos/RoboMaster-S1-WiFi-SDK`をそのまま使用します。
+`numpy-quaternion`がない場合は、使用中のPython環境へ追加してください。Ubuntu 24.04の
+システムPythonへユーザー単位で追加する例です。
 
 ```bash
-cd ~/repos/RoboMaster-S1-WiFi-SDK
+python3 -m pip install --user --break-system-packages numpy-quaternion
+```
+
+## Workspaceを準備
+
+標準の配置は`~/ros2_ws/src/robomaster_ros`です。
+
+```bash
+mkdir -p ~/ros2_ws/src
+cd ~/ros2_ws/src
+git clone --recurse-submodules \
+  https://github.com/tatsuyai713/robomaster_ros.git
+cd robomaster_ros
 git submodule update --init --recursive
 ```
 
-別の場所へcloneしている場合は、パスを実際のclone先へ置き換えてください。
-
-## SOLO用venvを作成してビルド
-
-ROS 2 packageを参照できるvenvを作り、SOLO SDKとcolconをその中へインストールします。
+すでにclone済みなら、submodule内に両backendがあることを確認します。
 
 ```bash
-cd ~/repos/RoboMaster-S1-WiFi-SDK
+test -d robomaster_s1_wifi_sdk/SDK/robomaster
+test -d robomaster_s1_wifi_sdk/LAB-SDK/robomaster
+```
+
+## 共通ROS packageをビルド
+
+SDK backendは起動時に選ぶため、colcon buildは1回だけです。
+
+```bash
+cd ~/ros2_ws
 source "/opt/ros/${ROS_DISTRO}/setup.bash"
-python3 -m venv --system-site-packages .venv-ros-solo
-source .venv-ros-solo/bin/activate
-python -m pip install --upgrade pip wheel
-python -m pip install "setuptools<80"
-python -m pip uninstall -y robomaster robomaster-s1-lab-sdk
-python -m pip install ./SDK numpy-quaternion pyyaml
-```
-
-この方法ではシステムPythonへpip installしないため、Ubuntu 24.04のPEP 668エラーを
-回避できます。
-
-> [!IMPORTANT]
-> `colcon build`を直接実行するとapt版colconのシステムPythonが使われます。
-> 生成されたROS executableからvenv内の`robomaster`をimportできなくなるため、
-> 必ず`python /usr/bin/colcon build ...`でvenvのPythonを明示します。
-
-backendを確認します。
-
-```bash
-python -c \
-  "import robomaster; print(robomaster.__file__); print(robomaster.IS_S1_WIFI_SDK)"
-```
-
-最後に`True`と表示されればSOLO backendです。
-
-依存解決とSOLO専用directoryへのビルドを行います。
-
-```bash
-cd ~/repos/RoboMaster-S1-WiFi-SDK
-rosdep install --from-paths robomaster_ros --ignore-src -r -y
-python /usr/bin/colcon build --symlink-install \
-  --build-base build-solo \
-  --install-base install-solo \
+rosdep install --from-paths src/robomaster_ros \
+  --ignore-src -r -y
+colcon build --symlink-install \
   --packages-select robomaster_msgs robomaster_description robomaster_ros
-source install-solo/setup.bash
-```
-
-packageを確認します。
-
-```bash
+source install/setup.bash
 ros2 pkg prefix robomaster_ros
-ros2 pkg executables robomaster_ros
 ```
 
-## LAB用venvを作成してビルド
-
-LABはSOLOとは別のvenvとbuild/install directoryを使います。SOLOをuninstallする
-必要はありません。
-
-```bash
-cd ~/repos/RoboMaster-S1-WiFi-SDK
-deactivate 2>/dev/null || true
-source "/opt/ros/${ROS_DISTRO}/setup.bash"
-python3 -m venv --system-site-packages .venv-ros-lab
-source .venv-ros-lab/bin/activate
-python -m pip install --upgrade pip wheel
-python -m pip install "setuptools<80"
-python -m pip install ./LAB-SDK numpy-quaternion pyyaml
-python -c \
-  "import robomaster; print(robomaster.__file__); print(robomaster.IS_LAB_SDK)"
-python /usr/bin/colcon build --symlink-install \
-  --build-base build-lab \
-  --install-base install-lab \
-  --packages-select robomaster_msgs robomaster_description robomaster_ros
-source install-lab/setup.bash
-```
-
-## S1 SOLOドライバを起動
+## S1へ接続
 
 S1とPCを同じWi-Fiへ接続し、S1のIPとAppIDを指定します。純正RoboMasterアプリは
 制御セッションが競合しないよう終了してください。
 
 ```bash
-source "/opt/ros/${ROS_DISTRO}/setup.bash"
-source ~/repos/RoboMaster-S1-WiFi-SDK/.venv-ros-solo/bin/activate
-source ~/repos/RoboMaster-S1-WiFi-SDK/install-solo/setup.bash
-
 export RM_ROBOT_IP=192.168.23.149
 export RM_APPID=b6359877
+```
+
+LAB backendを起動します。
+
+```bash
+cd ~/ros2_ws
+source /opt/ros/jazzy/setup.bash
+source install/setup.bash
+ros2 launch robomaster_ros s1_lab.launch
+```
+
+`s1_lab.launch`は既定で次のソースをdriverの`PYTHONPATH`へ追加します。LAB SDKを
+pip installする必要はありません。
+
+```text
+~/ros2_ws/src/robomaster_ros/robomaster_s1_wifi_sdk/LAB-SDK
+```
+
+SOLO backendも同じbuildから起動できます。
+
+```bash
 ros2 launch robomaster_ros s1_solo.launch
+```
+
+標準以外の場所へcloneした場合は、launch引数でソースディレクトリを指定します。
+
+```bash
+ros2 launch robomaster_ros s1_lab.launch \
+  backend_path:=/absolute/path/to/robomaster_ros/robomaster_s1_wifi_sdk/LAB-SDK
 ```
 
 接続状態を別端末から確認します。
@@ -206,18 +188,6 @@ ros2 topic echo /connected --once
 ```
 
 `data: true`なら接続済みです。
-
-## S1 LABドライバを起動
-
-LABはLAB用venvとinstall directoryをsourceして起動します。
-
-```bash
-source "/opt/ros/${ROS_DISTRO}/setup.bash"
-source ~/repos/RoboMaster-S1-WiFi-SDK/.venv-ros-lab/bin/activate
-source ~/repos/RoboMaster-S1-WiFi-SDK/install-lab/setup.bash
-RM_ROBOT_IP=192.168.23.149 RM_APPID=b6359877 \
-  ros2 launch robomaster_ros s1_lab.launch
-```
 
 機体側bridgeの転送と起動にはFTP `21`、Host bridgeにはUDP `40923`と`40924`も
 使用します。
@@ -406,39 +376,72 @@ bridgeと機体programも停止してから接続を閉じます。
 ### `Package 'robomaster_ros' not found`
 
 ```bash
+cd ~/ros2_ws
 source "/opt/ros/${ROS_DISTRO}/setup.bash"
-source ~/repos/RoboMaster-S1-WiFi-SDK/.venv-ros-solo/bin/activate
-source ~/repos/RoboMaster-S1-WiFi-SDK/install-solo/setup.bash
+source install/setup.bash
+ros2 pkg prefix robomaster_ros
 ```
 
-### SOLO backendが見つからない
+見つからない場合は、workspaceを再ビルドします。
 
 ```bash
-source ~/repos/RoboMaster-S1-WiFi-SDK/.venv-ros-solo/bin/activate
-python -c \
-  "import robomaster; print(robomaster.__file__); print(robomaster.IS_S1_WIFI_SDK)"
+cd ~/ros2_ws
+colcon build --symlink-install \
+  --packages-select robomaster_msgs robomaster_description robomaster_ros
+source install/setup.bash
 ```
-
-`False`またはimport errorの場合は、親リポジトリの`SDK/`をROS 2と同じPythonへ
-インストールしてください。
 
 ### `ModuleNotFoundError: No module named 'robomaster'`
 
-apt版の`colcon`を直接起動して生成されたROS executableはシステムPythonを使用します。
-SOLO venvのPythonから再ビルドしてください。
+古いinstall directory内のlaunchには`backend_path`設定がありません。また、
+`robomaster_driver.py`にも起動時のSDKパス追加処理が必要です。両方をinstall
+directoryへ反映してから起動します。
 
 ```bash
-cd ~/repos/RoboMaster-S1-WiFi-SDK
+cd ~/ros2_ws
 source /opt/ros/jazzy/setup.bash
-source .venv-ros-solo/bin/activate
-python /usr/bin/colcon build --symlink-install \
-  --build-base build-solo \
-  --install-base install-solo \
-  --packages-select robomaster_msgs robomaster_description robomaster_ros
-head -1 install-solo/robomaster_ros/lib/robomaster_ros/robomaster_driver
+colcon build --symlink-install \
+  --packages-select robomaster_ros
+source install/setup.bash
+ros2 launch robomaster_ros s1_lab.launch --show-args
+grep -n "ROBOMASTER_SDK_PATH" \
+  install/robomaster_ros/share/robomaster_ros/launch/main.launch
+ros2 launch robomaster_ros s1_lab.launch
 ```
 
-先頭行が`.venv-ros-solo/bin/python`を指していることを確認します。
+`--show-args`に`backend_path`が表示され、`grep`でも設定が見つかることを確認します。
+起動時に指定先が存在しない場合は、driverが`RoboMaster SDK source not found`と実際の
+確認対象パスを表示します。
+
+```bash
+test -d \
+  ~/ros2_ws/src/robomaster_ros/robomaster_s1_wifi_sdk/LAB-SDK/robomaster
+```
+
+clone場所が違う場合:
+
+```bash
+ros2 launch robomaster_ros s1_lab.launch \
+  backend_path:=/absolute/path/to/robomaster_ros/robomaster_s1_wifi_sdk/LAB-SDK
+```
+
+submoduleが空の場合は初期化します。
+
+```bash
+cd ~/ros2_ws/src/robomaster_ros
+git submodule update --init --recursive
+```
+
+### backendの依存packageが見つからない
+
+SDKソースはlaunchが追加しますが、共通のPython依存packageはシステムPythonから
+importできる必要があります。
+
+```bash
+python3 -c "import av, numpy, qrcode, quaternion, yaml; print('OK')"
+```
+
+不足しているpackageは「必要環境」の手順で追加してください。
 
 ### DualSenseが見つからない
 
@@ -471,23 +474,20 @@ ros2 topic echo /connected --once
 ## 開発・テスト
 
 ```bash
-cd ~/repos/RoboMaster-S1-WiFi-SDK
-source .venv-ros-solo/bin/activate
-python /usr/bin/colcon build --symlink-install \
-  --build-base build-solo \
-  --install-base install-solo \
+cd ~/ros2_ws
+source "/opt/ros/${ROS_DISTRO}/setup.bash"
+colcon build --symlink-install \
   --packages-select robomaster_msgs robomaster_description robomaster_ros
-python /usr/bin/colcon test \
-  --build-base build-solo \
-  --install-base install-solo \
+colcon test \
   --packages-select robomaster_msgs robomaster_description robomaster_ros
-python /usr/bin/colcon test-result --test-result-base build-solo --verbose
+colcon test-result --verbose
 ```
 
 Pythonファイルだけを確認する場合:
 
 ```bash
-python -m py_compile robomaster_ros/robomaster_ros/robomaster_ros/*.py
+python3 -m compileall -q \
+  src/robomaster_ros/robomaster_ros/robomaster_ros
 ```
 
 ## ライセンス

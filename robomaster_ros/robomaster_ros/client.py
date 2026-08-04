@@ -108,11 +108,11 @@ class RoboMasterROS(rclpy.node.Node):  # type: ignore
         self.solo_sdk = bool(getattr(robomaster, "IS_S1_WIFI_SDK", False))
         if requested_backend == "lab" and not self.lab_sdk:
             raise RuntimeError(
-                "sdk_backend=lab requires LAB-SDK to be installed before robomaster_ros"
+                "sdk_backend=lab requires LAB-SDK to be available on PYTHONPATH"
             )
         if requested_backend == "solo" and not self.solo_sdk:
             raise RuntimeError(
-                "sdk_backend=solo requires SDK/ to be installed before robomaster_ros"
+                "sdk_backend=solo requires SDK/ to be available on PYTHONPATH"
             )
         if self.lab_sdk and requested_backend != "lab":
             self.get_logger().warning(

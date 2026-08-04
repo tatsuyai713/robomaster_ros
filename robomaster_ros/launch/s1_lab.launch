@@ -2,6 +2,9 @@
   <arg name="name" default="$(env RM_NAME '')"/>
   <arg name="robot_ip" default="$(env RM_ROBOT_IP '')"/>
   <arg name="appid" default="$(env RM_APPID 'b6359877')"/>
+  <arg name="backend_path"
+    default="$(env HOME)/ros2_ws/src/robomaster_ros/robomaster_s1_wifi_sdk/LAB-SDK"
+    description="Path containing the LAB robomaster Python package"/>
   <arg name="conn_type" default="sta"/>
   <arg name="with_model_description" default="true"/>
   <arg name="audio" default="2"/>
@@ -13,6 +16,7 @@
     <arg name="name" value="$(var name)"/>
     <arg name="model" value="s1"/>
     <arg name="sdk_backend" value="lab"/>
+    <arg name="backend_path" value="$(var backend_path)"/>
     <arg name="robot_ip" value="$(var robot_ip)"/>
     <arg name="appid" value="$(var appid)"/>
     <arg name="conn_type" value="$(var conn_type)"/>

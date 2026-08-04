@@ -1,16 +1,33 @@
-from typing import Any, Optional
-import time
+import os
 import signal
+import sys
+import time
+from pathlib import Path
+from typing import Any, Optional
 
 import rclpy
 import rclpy.executors
 import rclpy.logging
 
 
-from robomaster_ros.client import RoboMasterROS
+def _add_sdk_source() -> None:
+    value = os.environ.get("ROBOMASTER_SDK_PATH", "")
+    if not value:
+        return
+    sdk_path = Path(value).expanduser()
+    package_path = sdk_path / "robomaster"
+    if not package_path.is_dir():
+        raise RuntimeError(
+            f"RoboMaster SDK source not found: {package_path}. "
+            "Set the launch argument backend_path to the SDK or LAB-SDK directory."
+        )
+    sys.path.insert(0, str(sdk_path))
 
 
 def main(args: Any = None) -> None:
+    _add_sdk_source()
+    from robomaster_ros.client import RoboMasterROS
+
     rclpy.init(args=args)
     executor = rclpy.executors.MultiThreadedExecutor()
     # TODO(Jerome): currently not triggered by ctrl+C

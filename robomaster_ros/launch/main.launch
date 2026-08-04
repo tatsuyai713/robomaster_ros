@@ -8,6 +8,7 @@
   <arg name="serial_number" default="$(env RM_SERIAL_NUMBER '')" description="The serial number of the robot. Leave empty to ignore it."/>
   <arg name="conn_type" default="sta" description="The type of connection: sta, ap, or rndis"/>
   <arg name="sdk_backend" default="official" description="SDK backend: official, lab, or solo"/>
+  <arg name="backend_path" default="" description="Source directory containing the selected robomaster Python package"/>
   <arg name="robot_ip" default="$(env RM_ROBOT_IP '')" description="Robot IP; recommended for LAB-SDK and SOLO SDK"/>
   <arg name="appid" default="$(env RM_APPID 'b6359877')" description="Windows App-compatible AppID used by LAB-SDK and SOLO SDK"/>
   <arg name="lib_log_level" default="ERROR" description="Robomaster SDK logging level"/>
@@ -132,6 +133,8 @@
 
   <node name="robomaster" pkg="robomaster_ros" exec="robomaster_driver" output="screen"
     args="--ros-args --log-level $(var log_level)">
+    <env name="ROBOMASTER_SDK_PATH" value="$(var backend_path)"/>
+    <env name="PYTHONPATH" value="$(var backend_path):$(env PYTHONPATH '')"/>
     <param name="tf_prefix" value="$(var name)"/>
     <param name="serial_number" value="$(var serial_number)"/>
     <param name="conn_type" value="$(var conn_type)"/>
