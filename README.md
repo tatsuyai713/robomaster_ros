@@ -11,6 +11,14 @@ PS5 DualSenseおよびキーボード用テレオペレーションノードを�
 親リポジトリから導入する場合は、colconワークスペース作成から実機接続までを説明した
 [ルートREADME](../README.md)も参照してください。
 
+This repository includes the SOLO SDK and LAB-SDK as the
+`robomaster_s1_wifi_sdk` submodule. Clone recursively or initialize it before
+installing a backend.
+
+```bash
+git submodule update --init --recursive
+```
+
 ## パッケージ
 
 | Package | 内容 |
@@ -113,6 +121,7 @@ python3 -m venv --system-site-packages .venv-ros-solo
 source .venv-ros-solo/bin/activate
 python -m pip install --upgrade pip wheel
 python -m pip install "setuptools<80"
+python -m pip uninstall -y robomaster robomaster-s1-lab-sdk
 python -m pip install ./SDK numpy-quaternion pyyaml
 ```
 

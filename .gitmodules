@@ -1,0 +1,4 @@
+[submodule "robomaster_s1_wifi_sdk"]
+	path = robomaster_s1_wifi_sdk
+	url = git@github.com:tatsuyai713/RoboMaster-S1-WiFi-SDK.git
+	branch = main
