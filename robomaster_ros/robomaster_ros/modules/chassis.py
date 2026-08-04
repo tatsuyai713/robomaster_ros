@@ -384,6 +384,8 @@ class Chassis(Module):
     def updated_position(self, msg: Tuple[float, float, float]) -> None:
         position = self.odom_msg.pose.pose.position
         x, y = position.x, position.y = (msg[0], -msg[1])
+        if self.lab_sdk and msg[2] is not None:
+            self.updated_attitude((msg[2], 0.0, 0.0))
         if self.odom_twist_from_pose_diff:
             velocity = self.odom_msg.twist.twist.linear
             if self.position is None:
