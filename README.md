@@ -7,17 +7,22 @@ Full documentation available at https://jeguzzi.github.io/robomaster_ros.
 
 ## RoboMaster S1 SOLO / LAB backends
 
-This copy can use the SOLO SDK or LAB-SDK bundled with the parent
-`RoboMaster-S1-WiFi-SDK` repository. Install the selected backend explicitly;
-the ROS package does not install another `robomaster` package implicitly. Use
-separate virtual environments: SOLO installs `SDK/` only; LAB installs its
-independent `LAB-SDK/` package only. The SDK packages do not import or depend
-on each other.
+This repository includes the SOLO SDK and LAB-SDK as the
+`robomaster_s1_wifi_sdk` submodule. Clone recursively or initialize it before
+installing a backend. Install the selected backend explicitly; the ROS package
+does not install another `robomaster` package implicitly. Use separate virtual
+environments: SOLO installs `SDK/` only; LAB installs its independent
+`LAB-SDK/` package only. The SDK packages do not import or depend on each
+other.
+
+```bash
+git submodule update --init --recursive
+```
 
 SOLO backend:
 
 ```bash
-cd /path/to/RoboMaster-S1-WiFi-SDK
+cd <ros2_ws>/src/robomaster_ros/robomaster_s1_wifi_sdk
 python3 -m pip uninstall -y robomaster robomaster-s1-lab-sdk
 python3 -m pip install ./SDK
 
@@ -31,7 +36,7 @@ RM_ROBOT_IP=192.168.23.149 RM_APPID=b6359877 \
 LAB backend:
 
 ```bash
-cd /path/to/RoboMaster-S1-WiFi-SDK
+cd <ros2_ws>/src/robomaster_ros/robomaster_s1_wifi_sdk
 python3 -m pip uninstall -y robomaster robomaster-s1-wifi-sdk
 python3 -m pip install ./LAB-SDK
 
@@ -55,8 +60,8 @@ using either S1-specific launch path.
 > SDK's explicit enter/upload/program/bridge sequence. Consequently,
 > `s1_solo.launch` and `s1_lab.launch` are not currently verified launch
 > paths. SOLO integration must call `initialize()` and then `enter_solo()`;
-> LAB integration must implement the lifecycle documented in the parent
-> repository's `docs/lab-lifecycle.md`.
+> LAB integration must implement the lifecycle documented in the SDK
+> submodule's `docs/lab-lifecycle.md`.
 
 Both S1 launch files expose `audio`, `audio_raw`, `audio_opus`, and
 `audio_level`. Their default is `2` (on demand), so subscribing to
